@@ -183,13 +183,7 @@ class FavoritesManager {
             });
         }
 
-        // 手動削除ボタン
-        const deleteUrlBtn = document.getElementById('delete-url-btn');
-        if (deleteUrlBtn) {
-            deleteUrlBtn.addEventListener('click', () => {
-                this.deleteByUrl();
-            });
-        }
+
 
         // タグ入力のイベントリスナー
         const tagsInput = document.getElementById('tags');
@@ -622,54 +616,7 @@ class FavoritesManager {
         this.notifyWebViewUpdate();
     }
 
-    async deleteByUrl() {
-        const urlInput = document.getElementById('delete-url');
-        const targetUrl = urlInput.value.trim();
 
-        if (!targetUrl) {
-            alert('削除するURLを入力してください');
-            return;
-        }
-
-        try {
-            // URLの形式チェック
-            new URL(targetUrl);
-        } catch (e) {
-            alert('有効なURLを入力してください');
-            return;
-        }
-
-        const result = await browser.storage.local.get(['favorites']);
-        const favorites = result.favorites || [];
-        
-        // 該当するお気に入りを検索
-        const matchingFavorites = favorites.filter(fav => fav.url === targetUrl);
-        
-        if (matchingFavorites.length === 0) {
-            alert('指定されたURLのお気に入りが見つかりません');
-            return;
-        }
-
-        const confirmMessage = matchingFavorites.length === 1 
-            ? `「${matchingFavorites[0].title}」を削除しますか？`
-            : `${matchingFavorites.length}件のお気に入りを削除しますか？`;
-
-        if (!confirm(confirmMessage)) return;
-
-        // 該当するお気に入りを削除
-        const updatedFavorites = favorites.filter(fav => fav.url !== targetUrl);
-        
-        await browser.storage.local.set({ favorites: updatedFavorites });
-        await this.loadFavorites();
-
-        // 入力フィールドをクリア
-        urlInput.value = '';
-
-        // WebViewに更新通知を送信
-        this.notifyWebViewUpdate();
-
-        alert(`${matchingFavorites.length}件のお気に入りを削除しました`);
-    }
 
     filterFavorites() {
         const searchTerm = document.getElementById('search').value.toLowerCase();
