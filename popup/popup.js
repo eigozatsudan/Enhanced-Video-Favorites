@@ -640,9 +640,30 @@ class FavoritesManager {
     }
 
     // Web画面で開く
-    openWebView() {
-        const webViewUrl = browser.runtime.getURL('web-view.html');
-        browser.tabs.create({ url: webViewUrl });
+    async openWebView() {
+        try {
+            const webViewUrl = browser.runtime.getURL('web-view.html');
+            
+            // 既存のWebViewタブを検索
+            const tabs = await browser.tabs.query({});
+            const existingTab = tabs.find(tab => tab.url === webViewUrl);
+            
+            if (existingTab) {
+                // 既存のタブがある場合はそのタブに移動
+                await browser.tabs.update(existingTab.id, { active: true });
+                await browser.windows.update(existingTab.windowId, { focused: true });
+                console.log('既存のWebViewタブに移動しました');
+            } else {
+                // 既存のタブがない場合は新しいタブを作成
+                await browser.tabs.create({ url: webViewUrl });
+                console.log('新しいWebViewタブを作成しました');
+            }
+        } catch (error) {
+            console.error('WebView開くエラー:', error);
+            // エラーの場合は従来通り新しいタブを作成
+            const webViewUrl = browser.runtime.getURL('web-view.html');
+            browser.tabs.create({ url: webViewUrl });
+        }
     }
 
     // WebViewに更新通知を送信
