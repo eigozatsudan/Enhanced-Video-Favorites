@@ -89,6 +89,11 @@ class FavoritesManager {
             this.addCurrentPage();
         });
 
+        // 現在のページ（アンカーなし）追加ボタン
+        document.getElementById('add-current-clean-btn').addEventListener('click', () => {
+            this.addCurrentPageClean();
+        });
+
         // 手動URL追加ボタン
         document.getElementById('add-manual-btn').addEventListener('click', () => {
             this.addManualUrl();
@@ -178,6 +183,14 @@ class FavoritesManager {
             });
         }
 
+        // 手動削除ボタン
+        const deleteUrlBtn = document.getElementById('delete-url-btn');
+        if (deleteUrlBtn) {
+            deleteUrlBtn.addEventListener('click', () => {
+                this.deleteByUrl();
+            });
+        }
+
         // タグ入力のイベントリスナー
         const tagsInput = document.getElementById('tags');
         if (tagsInput) {
@@ -216,6 +229,26 @@ class FavoritesManager {
             document.getElementById('url').value = tab.url || '';
         } catch (error) {
             console.error('現在のページ追加エラー:', error);
+        }
+    }
+
+    async addCurrentPageClean() {
+        try {
+            const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+
+            // URLからアンカー（#以降）を削除
+            let cleanUrl = tab.url || '';
+            const hashIndex = cleanUrl.indexOf('#');
+            if (hashIndex !== -1) {
+                cleanUrl = cleanUrl.substring(0, hashIndex);
+            }
+
+            // フォームを表示
+            this.showAddForm();
+            document.getElementById('title').value = tab.title || '';
+            document.getElementById('url').value = cleanUrl;
+        } catch (error) {
+            console.error('現在のページ（アンカーなし）追加エラー:', error);
         }
     }
 
@@ -484,8 +517,15 @@ class FavoritesManager {
 
         console.log('ロードされたお気に入り:', favorites);
 
-        this.allFavorites = favorites;
-        this.displayFavorites(favorites);
+        // 追加日時順（新しい順）にソートして最新10件のみ表示
+        const sortedFavorites = favorites.sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.id).getTime();
+            const timeB = new Date(b.timestamp || b.id).getTime();
+            return timeB - timeA; // 新しい順
+        });
+
+        this.allFavorites = sortedFavorites;
+        this.displayFavorites(sortedFavorites.slice(0, 10));
     }
 
     displayFavorites(favorites) {
@@ -495,6 +535,14 @@ class FavoritesManager {
         if (favorites.length === 0) {
             listContainer.innerHTML = '<p>お気に入りがありません</p>';
             return;
+        }
+
+        // 表示件数の情報を追加
+        if (this.allFavorites.length > favorites.length) {
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'favorites-info';
+            infoDiv.innerHTML = `<p style="font-size: 12px; color: #666; margin-bottom: 10px;">最新 ${favorites.length} 件を表示中（全 ${this.allFavorites.length} 件）</p>`;
+            listContainer.appendChild(infoDiv);
         }
 
         favorites.forEach(favorite => {
@@ -533,16 +581,22 @@ class FavoritesManager {
 
             // クリックでページを開く
             item.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('delete-btn')) {
+                if (!e.target.classList.contains('delete-btn') && !e.target.classList.contains('edit-btn')) {
                     browser.tabs.create({ url: favorite.url });
                 }
             });
 
             // 編集ボタン
-            item.querySelector('.edit-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.editFavorite(favorite.id);
-            });
+            const editBtn = item.querySelector('.edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    console.log('編集ボタンがクリックされました:', favorite.id);
+                    e.stopPropagation();
+                    this.editFavorite(favorite.id);
+                });
+            } else {
+                console.error('編集ボタンが見つかりません');
+            }
 
             // 削除ボタン
             item.querySelector('.delete-btn').addEventListener('click', (e) => {
@@ -568,6 +622,55 @@ class FavoritesManager {
         this.notifyWebViewUpdate();
     }
 
+    async deleteByUrl() {
+        const urlInput = document.getElementById('delete-url');
+        const targetUrl = urlInput.value.trim();
+
+        if (!targetUrl) {
+            alert('削除するURLを入力してください');
+            return;
+        }
+
+        try {
+            // URLの形式チェック
+            new URL(targetUrl);
+        } catch (e) {
+            alert('有効なURLを入力してください');
+            return;
+        }
+
+        const result = await browser.storage.local.get(['favorites']);
+        const favorites = result.favorites || [];
+        
+        // 該当するお気に入りを検索
+        const matchingFavorites = favorites.filter(fav => fav.url === targetUrl);
+        
+        if (matchingFavorites.length === 0) {
+            alert('指定されたURLのお気に入りが見つかりません');
+            return;
+        }
+
+        const confirmMessage = matchingFavorites.length === 1 
+            ? `「${matchingFavorites[0].title}」を削除しますか？`
+            : `${matchingFavorites.length}件のお気に入りを削除しますか？`;
+
+        if (!confirm(confirmMessage)) return;
+
+        // 該当するお気に入りを削除
+        const updatedFavorites = favorites.filter(fav => fav.url !== targetUrl);
+        
+        await browser.storage.local.set({ favorites: updatedFavorites });
+        await this.loadFavorites();
+
+        // 入力フィールドをクリア
+        urlInput.value = '';
+
+        // WebViewに更新通知を送信
+        this.notifyWebViewUpdate();
+
+        alert(`${matchingFavorites.length}件のお気に入りを削除しました`);
+    }
+
     filterFavorites() {
         const searchTerm = document.getElementById('search').value.toLowerCase();
         const selectedCategory = document.getElementById('filter-category').value;
@@ -585,7 +688,8 @@ class FavoritesManager {
             );
         }
 
-        this.displayFavorites(filtered);
+        // フィルター結果も最新10件に制限
+        this.displayFavorites(filtered.slice(0, 10));
     }
 
     // Web画面で開く
@@ -615,16 +719,30 @@ class FavoritesManager {
 
     // お気に入りを編集
     editFavorite(id) {
-        const favorite = this.allFavorites.find(fav => fav.id === id);
-        if (!favorite) {
-            console.error('編集対象のお気に入りが見つかりません:', id);
-            return;
-        }
+        try {
+            console.log('editFavoriteメソッドが呼び出されました:', id);
+            console.log('allFavorites:', this.allFavorites);
+            const favorite = this.allFavorites.find(fav => fav.id === id);
+            if (!favorite) {
+                console.error('編集対象のお気に入りが見つかりません:', id);
+                console.error('利用可能なID:', this.allFavorites.map(f => f.id));
+                return;
+            }
+            console.log('編集対象のお気に入り:', favorite);
 
         // 編集フォームに値を設定
-        document.getElementById('edit-title').value = favorite.title || '';
-        document.getElementById('edit-url').value = favorite.url || '';
-        document.getElementById('edit-image-url').value = favorite.imageUrl || '';
+        const editTitleEl = document.getElementById('edit-title');
+        const editUrlEl = document.getElementById('edit-url');
+        const editImageUrlEl = document.getElementById('edit-image-url');
+        
+        if (!editTitleEl || !editUrlEl || !editImageUrlEl) {
+            console.error('編集フォーム要素が見つかりません');
+            return;
+        }
+        
+        editTitleEl.value = favorite.title || '';
+        editUrlEl.value = favorite.url || '';
+        editImageUrlEl.value = favorite.imageUrl || '';
         
         // カテゴリーを設定
         const editCategorySelect = document.getElementById('edit-category');
@@ -639,9 +757,15 @@ class FavoritesManager {
         this.loadEditTags();
         this.updateEditSelectedTags();
         
-        // 編集タブに切り替え
+        // 編集タブを表示して切り替え
+        const editTabBtn = document.querySelector('[data-tab="edit"]');
+        editTabBtn.style.display = 'block';
         this.switchTab('edit');
-        document.querySelector('[data-tab="edit"]').style.display = 'block';
+        
+        } catch (error) {
+            console.error('editFavoriteエラー:', error);
+            alert('編集画面の表示中にエラーが発生しました: ' + error.message);
+        }
     }
 
     // 編集をキャンセル
@@ -736,22 +860,39 @@ class FavoritesManager {
     }
 
     // 編集用カテゴリーを読み込み
-    loadEditCategories() {
+    async loadEditCategories() {
         const categorySelect = document.getElementById('edit-category');
         categorySelect.innerHTML = '<option value="">カテゴリーを選択</option>';
 
-        this.allCategories.forEach(category => {
-            const option = new Option(category, category);
-            categorySelect.appendChild(option);
-        });
+        // allCategoriesが未定義の場合は読み込み
+        if (!this.allCategories) {
+            console.log('allCategoriesが未定義のため、データを読み込みます');
+            await this.loadCategories();
+        }
+
+        if (this.allCategories && Array.isArray(this.allCategories)) {
+            this.allCategories.forEach(category => {
+                const option = new Option(category, category);
+                categorySelect.appendChild(option);
+            });
+        } else {
+            console.warn('allCategoriesが配列ではありません:', this.allCategories);
+        }
     }
 
     // 編集用タグを読み込み
-    loadEditTags() {
+    async loadEditTags() {
         const container = document.getElementById('edit-existing-tags');
         container.innerHTML = '';
 
-        this.allTags.forEach(tag => {
+        // allTagsが未定義の場合は読み込み
+        if (!this.allTags) {
+            console.log('allTagsが未定義のため、データを読み込みます');
+            await this.loadTags();
+        }
+
+        if (this.allTags && Array.isArray(this.allTags)) {
+            this.allTags.forEach(tag => {
             const tagElement = document.createElement('span');
             tagElement.className = 'existing-tag';
             tagElement.textContent = tag;
@@ -765,6 +906,9 @@ class FavoritesManager {
             });
             container.appendChild(tagElement);
         });
+        } else {
+            console.warn('allTagsが配列ではありません:', this.allTags);
+        }
     }
 
     // 編集用選択済みタグを更新

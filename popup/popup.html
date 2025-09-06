@@ -11,6 +11,7 @@
     <!-- 共通の追加ボタン -->
     <div class="common-actions">
       <button id="add-current-btn" class="btn primary">現在のページを追加</button>
+      <button id="add-current-clean-btn" class="btn">現在のページ（アンカーなし）</button>
       <button id="add-manual-btn" class="btn">手動でURL追加</button>
       <button id="open-web-view-btn" class="btn">Web画面で開く</button>
     </div>
@@ -86,6 +87,12 @@
         <button id="export-btn" class="btn">データをエクスポート</button>
         <button id="import-btn" class="btn">データをインポート</button>
         <input type="file" id="import-file" accept=".json" style="display: none;">
+      </div>
+      
+      <div class="settings-section">
+        <h4>手動削除</h4>
+        <input type="url" id="delete-url" placeholder="削除するURL">
+        <button id="delete-url-btn" class="btn danger">URLで削除</button>
       </div>
       
       <div class="settings-section">
