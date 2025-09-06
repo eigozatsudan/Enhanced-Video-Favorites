@@ -161,13 +161,16 @@ class WebFavoritesViewer {
             container.innerHTML = html;
         }
 
+        // クリックイベントリスナーを追加
+        this.addCardClickListeners(container);
+
         this.updatePagination(favorites.length);
         this.updateLoadingState(false);
     }
 
     createFavoriteCard(favorite) {
         return `
-            <div class="favorite-card" onclick="window.open('${favorite.url}', '_blank')">
+            <div class="favorite-card" data-url="${this.escapeHtml(favorite.url)}">
                 <div class="favorite-image">
                     ${favorite.imageUrl
                 ? `<img src="${favorite.imageUrl}" alt="${favorite.title}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -194,6 +197,37 @@ class WebFavoritesViewer {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    addCardClickListeners(container) {
+        const cards = container.querySelectorAll('.favorite-card[data-url]');
+        cards.forEach(card => {
+            // 既存のイベントリスナーを削除（重複防止）
+            card.removeEventListener('click', this.handleCardClick);
+            // 新しいイベントリスナーを追加
+            card.addEventListener('click', this.handleCardClick.bind(this));
+        });
+    }
+
+    async handleCardClick(event) {
+        const card = event.currentTarget;
+        const url = card.dataset.url;
+
+        if (!url) return;
+
+        try {
+            // browser APIが利用可能な場合はそれを使用
+            if (browser && browser.tabs && browser.tabs.create) {
+                await browser.tabs.create({ url: url });
+            } else {
+                // フォールバック: window.openを使用
+                window.open(url, '_blank');
+            }
+        } catch (error) {
+            console.error('ページを開くエラー:', error);
+            // エラーの場合はフォールバック
+            window.open(url, '_blank');
+        }
     }
 
     loadMoreItems() {
