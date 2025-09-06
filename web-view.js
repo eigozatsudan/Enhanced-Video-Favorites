@@ -100,6 +100,7 @@ class WebFavoritesViewer {
                     categories: this.allCategories.length,
                     tags: this.allTags.length
                 });
+                console.log('WebView: お気に入りID一覧:', this.allFavorites.map(f => f.id));
 
                 this.loadCategories();
                 this.filteredFavorites = [...this.allFavorites];
@@ -170,7 +171,7 @@ class WebFavoritesViewer {
 
     createFavoriteCard(favorite) {
         return `
-            <div class="favorite-card" data-url="${this.escapeHtml(favorite.url)}">
+            <div class="favorite-card" data-url="${this.escapeHtml(favorite.url)}" data-id="${favorite.id}">
                 <div class="favorite-image">
                     ${favorite.imageUrl
                 ? `<img src="${favorite.imageUrl}" alt="${favorite.title}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -189,6 +190,10 @@ class WebFavoritesViewer {
                         ${favorite.tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}
                     </div>
                 </div>
+                <div class="favorite-actions">
+                    <button class="action-btn edit-btn" data-id="${favorite.id}">編集</button>
+                    <button class="action-btn delete-btn" data-id="${favorite.id}">削除</button>
+                </div>
             </div>
         `;
     }
@@ -202,14 +207,29 @@ class WebFavoritesViewer {
     addCardClickListeners(container) {
         const cards = container.querySelectorAll('.favorite-card[data-url]');
         cards.forEach(card => {
-            // 既存のイベントリスナーを削除（重複防止）
-            card.removeEventListener('click', this.handleCardClick);
-            // 新しいイベントリスナーを追加
+            // カードクリック（ページを開く）
             card.addEventListener('click', this.handleCardClick.bind(this));
+
+            // 編集ボタン
+            const editBtn = card.querySelector('.edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', this.handleEditClick.bind(this));
+            }
+
+            // 削除ボタン
+            const deleteBtn = card.querySelector('.delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', this.handleDeleteClick.bind(this));
+            }
         });
     }
 
     async handleCardClick(event) {
+        // ボタンクリックの場合は無視
+        if (event.target.classList.contains('action-btn')) {
+            return;
+        }
+
         const card = event.currentTarget;
         const url = card.dataset.url;
 
@@ -227,6 +247,232 @@ class WebFavoritesViewer {
             console.error('ページを開くエラー:', error);
             // エラーの場合はフォールバック
             window.open(url, '_blank');
+        }
+    }
+
+    handleEditClick(event) {
+        event.stopPropagation();
+        const favoriteId = event.target.dataset.id;
+        this.showEditModal(favoriteId);
+    }
+
+    async handleDeleteClick(event) {
+        event.stopPropagation();
+        const favoriteId = event.target.dataset.id;
+
+        const favorite = this.allFavorites.find(fav => fav.id === favoriteId);
+        if (!favorite) return;
+
+        if (confirm(`「${favorite.title}」を削除しますか？`)) {
+            await this.deleteFavorite(favoriteId);
+        }
+    }
+
+    async deleteFavorite(favoriteId) {
+        try {
+            console.log('WebView: 削除開始 - favoriteId:', favoriteId);
+
+            const response = await new Promise((resolve, reject) => {
+                browser.runtime.sendMessage(
+                    {
+                        action: 'deleteFavorite',
+                        favoriteId: favoriteId
+                    },
+                    (response) => {
+                        console.log('WebView: background からの応答:', response);
+                        if (browser.runtime.lastError) {
+                            console.error('WebView: runtime.lastError:', browser.runtime.lastError);
+                            reject(new Error(browser.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    }
+                );
+            });
+
+            if (response && response.success) {
+                console.log('WebView: 削除成功、データ再読み込み開始');
+                // データを再読み込み
+                await this.loadData();
+                console.log('WebView: データ再読み込み完了');
+                alert('お気に入りを削除しました');
+            } else {
+                console.error('WebView: 削除失敗:', response);
+                throw new Error(response?.error || '削除に失敗しました');
+            }
+        } catch (error) {
+            console.error('削除エラー:', error);
+            alert('削除中にエラーが発生しました: ' + error.message);
+        }
+    }
+
+    showEditModal(favoriteId) {
+        const favorite = this.allFavorites.find(fav => fav.id === favoriteId);
+        if (!favorite) return;
+
+        // モーダルを作成
+        const modal = document.createElement('div');
+        modal.className = 'edit-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>お気に入りを編集</h3>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <form class="edit-form">
+                    <div class="form-group">
+                        <label for="edit-title">タイトル</label>
+                        <input type="text" id="edit-title" value="${this.escapeHtml(favorite.title)}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-url">URL</label>
+                        <input type="url" id="edit-url" value="${this.escapeHtml(favorite.url)}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-image-url">画像URL</label>
+                        <input type="url" id="edit-image-url" value="${favorite.imageUrl || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-category">カテゴリー</label>
+                        <select id="edit-category">
+                            <option value="">カテゴリーを選択</option>
+                            ${this.allCategories.map(cat =>
+            `<option value="${this.escapeHtml(cat)}" ${cat === favorite.category ? 'selected' : ''}>${this.escapeHtml(cat)}</option>`
+        ).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-new-category">新しいカテゴリー</label>
+                        <input type="text" id="edit-new-category" placeholder="新しいカテゴリー名">
+                    </div>
+                    <div class="form-group">
+                        <label>タグ</label>
+                        <div class="tags-container">
+                            <div class="selected-tags" id="edit-selected-tags">
+                                ${favorite.tags.map(tag =>
+            `<span class="selected-tag">${this.escapeHtml(tag)} <span class="remove-tag" data-tag="${this.escapeHtml(tag)}">&times;</span></span>`
+        ).join('')}
+                            </div>
+                            <input type="text" id="edit-tags-input" placeholder="新しいタグを入力（Enterで追加）">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary">更新</button>
+                        <button type="button" class="btn cancel-btn">キャンセル</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        this.setupEditModalEvents(modal, favoriteId, favorite.tags);
+    }
+
+    setupEditModalEvents(modal, favoriteId, originalTags) {
+        let selectedTags = new Set(originalTags);
+
+        // 閉じるボタン
+        modal.querySelector('.close-btn').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+
+        modal.querySelector('.cancel-btn').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+
+        // モーダル外クリックで閉じる
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+            }
+        });
+
+        // タグ削除
+        modal.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-tag')) {
+                const tag = e.target.dataset.tag;
+                selectedTags.delete(tag);
+                this.updateSelectedTagsDisplay(modal, selectedTags);
+            }
+        });
+
+        // タグ追加
+        const tagsInput = modal.querySelector('#edit-tags-input');
+        tagsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const newTag = tagsInput.value.trim();
+                if (newTag) {
+                    selectedTags.add(newTag);
+                    tagsInput.value = '';
+                    this.updateSelectedTagsDisplay(modal, selectedTags);
+                }
+            }
+        });
+
+        // フォーム送信
+        modal.querySelector('.edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.updateFavorite(modal, favoriteId, selectedTags);
+        });
+    }
+
+    updateSelectedTagsDisplay(modal, selectedTags) {
+        const container = modal.querySelector('#edit-selected-tags');
+        container.innerHTML = Array.from(selectedTags).map(tag =>
+            `<span class="selected-tag">${this.escapeHtml(tag)} <span class="remove-tag" data-tag="${this.escapeHtml(tag)}">&times;</span></span>`
+        ).join('');
+    }
+
+    async updateFavorite(modal, favoriteId, selectedTags) {
+        try {
+            const title = modal.querySelector('#edit-title').value.trim();
+            const url = modal.querySelector('#edit-url').value.trim();
+            const imageUrl = modal.querySelector('#edit-image-url').value.trim();
+            const selectedCategory = modal.querySelector('#edit-category').value;
+            const newCategory = modal.querySelector('#edit-new-category').value.trim();
+
+            if (!title || !url) {
+                alert('タイトルとURLは必須です');
+                return;
+            }
+
+            const category = newCategory || selectedCategory || null;
+            const tags = Array.from(selectedTags);
+
+            const response = await new Promise((resolve, reject) => {
+                browser.runtime.sendMessage(
+                    {
+                        action: 'updateFavorite',
+                        favoriteId: favoriteId,
+                        data: {
+                            title,
+                            url,
+                            imageUrl: imageUrl || null,
+                            category,
+                            tags
+                        }
+                    },
+                    (response) => {
+                        if (browser.runtime.lastError) {
+                            reject(new Error(browser.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    }
+                );
+            });
+
+            if (response && response.success) {
+                document.body.removeChild(modal);
+                await this.loadData();
+                alert('お気に入りを更新しました');
+            } else {
+                throw new Error(response?.error || '更新に失敗しました');
+            }
+        } catch (error) {
+            console.error('更新エラー:', error);
+            alert('更新中にエラーが発生しました: ' + error.message);
         }
     }
 
