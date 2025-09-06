@@ -1,0 +1,228 @@
+class WebFavoritesViewer {
+    constructor() {
+        console.log('WebView: WebFavoritesViewer constructor');
+        this.allFavorites = [];
+        this.allCategories = [];
+        this.allTags = [];
+        this.init();
+    }
+
+    async init() {
+        console.log('WebView: init開始');
+        await this.loadData();
+        console.log('WebView: loadData完了、データ件数:', this.allFavorites.length);
+        this.setupEventListeners();
+        this.displayFavorites(this.allFavorites);
+        this.updateStats();
+        console.log('WebView: init完了');
+    }
+
+    setupEventListeners() {
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            this.loadData();
+        });
+
+        document.getElementById('search').addEventListener('input', () => {
+            this.filterFavorites();
+        });
+
+        document.getElementById('filter-category').addEventListener('change', () => {
+            this.filterFavorites();
+        });
+
+        // デバッグ用：ストレージ直接確認
+        document.getElementById('debug-storage-btn').addEventListener('click', async () => {
+            try {
+                const result = await browser.storage.local.get(null);
+                console.log('WebView: ストレージの全内容:', result);
+                alert('ストレージ内容をコンソールに出力しました。開発者ツールを確認してください。');
+            } catch (error) {
+                console.error('ストレージ確認エラー:', error);
+                alert('ストレージ確認エラー: ' + error.message);
+            }
+        });
+    }
+
+    async loadData() {
+        try {
+            console.log('WebView: データ読み込み開始');
+            
+            // browser APIの確認
+            if (!browser || !browser.runtime) {
+                console.error('WebView: browser.runtime が利用できません');
+                this.showError('拡張機能APIにアクセスできません');
+                return;
+            }
+            
+            // background scriptからデータを取得
+            const response = await new Promise((resolve, reject) => {
+                browser.runtime.sendMessage(
+                    { action: 'getFavoritesData' },
+                    (response) => {
+                        if (browser.runtime.lastError) {
+                            console.error('WebView: runtime.lastError:', browser.runtime.lastError);
+                            reject(new Error(browser.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    }
+                );
+            });
+            
+            console.log('WebView: background scriptからの応答:', response);
+            console.log('WebView: 応答の型:', typeof response);
+            console.log('WebView: 応答の内容:', JSON.stringify(response));
+            
+            if (response && response.success) {
+                this.allFavorites = response.data.favorites || [];
+                this.allCategories = response.data.categories || [];
+                this.allTags = response.data.allTags || [];
+                
+                console.log('WebView: 読み込まれたデータ:', {
+                    favorites: this.allFavorites.length,
+                    categories: this.allCategories.length,
+                    tags: this.allTags.length
+                });
+                
+                this.loadCategories();
+                this.displayFavorites(this.allFavorites);
+                this.updateStats();
+            } else {
+                console.error('データ取得失敗:', response);
+                const errorMessage = response && response.error ? response.error : '不明なエラー（応答形式が不正）';
+                this.showError('データの読み込みに失敗しました: ' + errorMessage);
+            }
+        } catch (error) {
+            console.error('データ読み込みエラー:', error);
+            this.showError('データの読み込み中にエラーが発生しました: ' + error.message);
+        }
+    }
+
+    loadCategories() {
+        const filterSelect = document.getElementById('filter-category');
+        filterSelect.innerHTML = '<option value="">全カテゴリー</option>';
+
+        this.allCategories.forEach(category => {
+            const option = new Option(category, category);
+            filterSelect.appendChild(option);
+        });
+    }
+
+    displayFavorites(favorites) {
+        console.log('WebView: displayFavorites呼び出し', favorites.length, '件');
+        console.log('WebView: favorites データ:', favorites);
+        const container = document.getElementById('favorites-grid');
+        
+        if (!container) {
+            console.error('WebView: favorites-grid要素が見つかりません');
+            return;
+        }
+        
+        if (favorites.length === 0) {
+            console.log('WebView: お気に入りが0件のため、メッセージを表示');
+            container.innerHTML = `
+                <div class="no-favorites">
+                    <h3>お気に入りがありません</h3>
+                    <p>拡張機能のポップアップからお気に入りを追加してください</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 10px;">デバッグ: favorites.length = ${favorites.length}</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = favorites.map(favorite => `
+            <div class="favorite-card" onclick="window.open('${favorite.url}', '_blank')">
+                <div class="favorite-image">
+                    ${favorite.imageUrl 
+                        ? `<img src="${favorite.imageUrl}" alt="${favorite.title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                           <div class="image-fallback" style="display:none;">🔗</div>`
+                        : `<div class="image-fallback">🔗</div>`
+                    }
+                </div>
+                <div class="favorite-content">
+                    <div class="favorite-title">${favorite.title}</div>
+                    <div class="favorite-url">${favorite.url}</div>
+                    <div class="favorite-meta">
+                        ${favorite.category ? `カテゴリー: ${favorite.category} | ` : ''}
+                        ${new Date(favorite.timestamp).toLocaleDateString()}
+                    </div>
+                    <div class="favorite-tags">
+                        ${favorite.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    filterFavorites() {
+        const searchTerm = document.getElementById('search').value.toLowerCase();
+        const selectedCategory = document.getElementById('filter-category').value;
+
+        let filtered = this.allFavorites;
+
+        if (selectedCategory) {
+            filtered = filtered.filter(fav => fav.category === selectedCategory);
+        }
+
+        if (searchTerm) {
+            filtered = filtered.filter(fav =>
+                fav.title.toLowerCase().includes(searchTerm) ||
+                fav.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+            );
+        }
+
+        this.displayFavorites(filtered);
+    }
+
+    updateStats() {
+        document.getElementById('total-count').textContent = this.allFavorites.length;
+        document.getElementById('category-count').textContent = this.allCategories.length;
+        document.getElementById('with-image-count').textContent = 
+            this.allFavorites.filter(fav => fav.imageUrl).length;
+    }
+
+    showError(message) {
+        const container = document.getElementById('favorites-grid');
+        container.innerHTML = `
+            <div class="no-favorites">
+                <h3>エラーが発生しました</h3>
+                <p>${message}</p>
+                <button class="refresh-btn" onclick="location.reload()">再読み込み</button>
+            </div>
+        `;
+    }
+}
+
+// グローバル変数でビューアーインスタンスを保持
+let webViewer = null;
+
+// 初期化
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('WebView: DOMContentLoaded');
+    
+    // browser APIの存在確認
+    if (typeof browser === 'undefined') {
+        console.error('WebView: browser API が利用できません');
+        document.getElementById('favorites-grid').innerHTML = `
+            <div class="no-favorites">
+                <h3>拡張機能APIにアクセスできません</h3>
+                <p>この画面は拡張機能のコンテキストで開く必要があります。</p>
+                <p>拡張機能のポップアップから「Web画面で開く」ボタンを使用してください。</p>
+            </div>
+        `;
+        return;
+    }
+    
+    console.log('WebView: browser API が利用可能です');
+    webViewer = new WebFavoritesViewer();
+    
+    // メッセージリスナーを追加（データ更新通知を受信）
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        console.log('WebView: メッセージ受信:', message);
+        if (message.action === 'dataUpdated' && webViewer) {
+            console.log('WebView: データ更新通知を受信、リロード開始');
+            webViewer.loadData();
+        }
+        sendResponse({ success: true });
+    });
+});

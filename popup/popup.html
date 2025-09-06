@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>お気に入り管理</h2>
+    
+    <!-- 共通の追加ボタン -->
+    <div class="common-actions">
+      <button id="add-current-btn" class="btn primary">現在のページを追加</button>
+      <button id="add-manual-btn" class="btn">手動でURL追加</button>
+      <button id="open-web-view-btn" class="btn">Web画面で開く</button>
+    </div>
+    
+    <div class="tabs">
+      <button class="tab-btn" data-tab="add">追加</button>
+      <button class="tab-btn active" data-tab="list">一覧</button>
+      <button class="tab-btn" data-tab="edit" style="display: none;">編集</button>
+      <button class="tab-btn" data-tab="settings">設定</button>
+    </div>
+    
+    <div id="add-tab" class="tab-content">
+      <div id="add-form" class="form hidden">
+        <input type="text" id="title" placeholder="タイトル" required>
+        <input type="url" id="url" placeholder="URL" required>
+        <input type="url" id="image-url" placeholder="画像URL（任意）">
+        <select id="category">
+          <option value="">カテゴリーを選択</option>
+        </select>
+        <input type="text" id="new-category" placeholder="新しいカテゴリー">
+        <div class="tags-section">
+          <label for="tags">タグ:</label>
+          <div id="existing-tags" class="existing-tags"></div>
+          <input type="text" id="tags" placeholder="新しいタグを入力（カンマ区切り）">
+          <div id="selected-tags" class="selected-tags"></div>
+        </div>
+        <div class="form-actions">
+          <button id="save-btn" class="btn primary">保存</button>
+          <button id="cancel-btn" class="btn">キャンセル</button>
+        </div>
+      </div>
+      <div id="add-placeholder" class="placeholder-content">
+        <p>上のボタンから新しいお気に入りを追加できます</p>
+      </div>
+    </div>
+    
+    <div id="edit-tab" class="tab-content">
+      <div id="edit-form" class="form">
+        <h3>お気に入りを編集</h3>
+        <input type="text" id="edit-title" placeholder="タイトル" required>
+        <input type="url" id="edit-url" placeholder="URL" required>
+        <input type="url" id="edit-image-url" placeholder="画像URL（任意）">
+        <select id="edit-category">
+          <option value="">カテゴリーを選択</option>
+        </select>
+        <input type="text" id="edit-new-category" placeholder="新しいカテゴリー">
+        <div class="tags-section">
+          <label for="edit-tags">タグ:</label>
+          <div id="edit-existing-tags" class="existing-tags"></div>
+          <input type="text" id="edit-tags" placeholder="新しいタグを入力（カンマ区切り）">
+          <div id="edit-selected-tags" class="selected-tags"></div>
+        </div>
+        <div class="form-actions">
+          <button id="update-btn" class="btn primary">更新</button>
+          <button id="cancel-edit-btn" class="btn">キャンセル</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="list-tab" class="tab-content active">
+      <div class="filters">
+        <select id="filter-category">
+          <option value="">全カテゴリー</option>
+        </select>
+        <input type="text" id="search" placeholder="検索...">
+      </div>
+      <div id="favorites-list"></div>
+    </div>
+    
+    <div id="settings-tab" class="tab-content">
+      <h3>データ管理</h3>
+      <div class="settings-section">
+        <button id="export-btn" class="btn">データをエクスポート</button>
+        <button id="import-btn" class="btn">データをインポート</button>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
+      </div>
+      
+      <div class="settings-section">
+        <button id="backup-btn" class="btn">手動バックアップ</button>
+        <button id="restore-btn" class="btn">バックアップから復元</button>
+      </div>
+      
+      <div class="settings-section">
+        <p class="settings-info">
+          <strong>データの永続化について：</strong><br>
+          お気に入りデータは拡張機能の専用ストレージに保存されており、ブラウザのキャッシュクリアでは削除されません。
+          さらに安全のため、定期的にエクスポート機能でバックアップを取ることをお勧めします。
+        </p>
+      </div>
+      
+      <div class="settings-section">
+        <div id="backup-status" class="backup-status"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
