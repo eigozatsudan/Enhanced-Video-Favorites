@@ -404,8 +404,17 @@ class FavoritesManager {
         const filterSelect = document.getElementById('filter-category');
 
         // カテゴリー選択肢をクリア
-        categorySelect.innerHTML = '<option value="">カテゴリーを選択</option>';
-        filterSelect.innerHTML = '<option value="">全カテゴリー</option>';
+        categorySelect.textContent = '';
+        const defaultOption1 = document.createElement('option');
+        defaultOption1.value = '';
+        defaultOption1.textContent = 'カテゴリーを選択';
+        categorySelect.appendChild(defaultOption1);
+
+        filterSelect.textContent = '';
+        const defaultOption2 = document.createElement('option');
+        defaultOption2.value = '';
+        defaultOption2.textContent = '全カテゴリー';
+        filterSelect.appendChild(defaultOption2);
 
         categories.forEach(category => {
             const option1 = new Option(category, category);
@@ -422,10 +431,14 @@ class FavoritesManager {
         const existingTagsContainer = document.getElementById('existing-tags');
         if (!existingTagsContainer) return;
 
-        existingTagsContainer.innerHTML = '';
+        existingTagsContainer.textContent = '';
 
         if (allTags.length === 0) {
-            existingTagsContainer.innerHTML = '<span style="color: #999; font-size: 11px;">まだタグがありません</span>';
+            const span = document.createElement('span');
+            span.style.color = '#999';
+            span.style.fontSize = '11px';
+            span.textContent = 'まだタグがありません';
+            existingTagsContainer.appendChild(span);
             return;
         }
 
@@ -472,17 +485,18 @@ class FavoritesManager {
         const selectedTagsContainer = document.getElementById('selected-tags');
         if (!selectedTagsContainer) return;
 
-        selectedTagsContainer.innerHTML = '';
+        selectedTagsContainer.textContent = '';
 
         this.selectedTags.forEach(tag => {
             const tagElement = document.createElement('span');
             tagElement.className = 'selected-tag';
-            tagElement.innerHTML = `
-                ${tag}
-                <span class="remove-tag" data-tag="${tag}">×</span>
-            `;
+            tagElement.textContent = tag + ' ';
 
-            const removeBtn = tagElement.querySelector('.remove-tag');
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-tag';
+            removeBtn.dataset.tag = tag;
+            removeBtn.textContent = '×';
+            tagElement.appendChild(removeBtn);
             removeBtn.addEventListener('click', () => {
                 this.selectedTags.delete(tag);
                 this.updateSelectedTagsDisplay();
@@ -524,10 +538,12 @@ class FavoritesManager {
 
     displayFavorites(favorites) {
         const listContainer = document.getElementById('favorites-list');
-        listContainer.innerHTML = '';
+        listContainer.textContent = '';
 
         if (favorites.length === 0) {
-            listContainer.innerHTML = '<p>お気に入りがありません</p>';
+            const p = document.createElement('p');
+            p.textContent = 'お気に入りがありません';
+            listContainer.appendChild(p);
             return;
         }
 
@@ -535,7 +551,12 @@ class FavoritesManager {
         if (this.allFavorites.length > favorites.length) {
             const infoDiv = document.createElement('div');
             infoDiv.className = 'favorites-info';
-            infoDiv.innerHTML = `<p style="font-size: 12px; color: #666; margin-bottom: 10px;">最新 ${favorites.length} 件を表示中（全 ${this.allFavorites.length} 件）</p>`;
+            const p = document.createElement('p');
+            p.style.fontSize = '12px';
+            p.style.color = '#666';
+            p.style.marginBottom = '10px';
+            p.textContent = `最新 ${favorites.length} 件を表示中（全 ${this.allFavorites.length} 件）`;
+            infoDiv.appendChild(p);
             listContainer.appendChild(infoDiv);
         }
 
@@ -547,31 +568,91 @@ class FavoritesManager {
             const truncatedTitle = this.truncateTitle(favorite.title, 10);
 
             // 画像表示部分
-            const imageHtml = favorite.imageUrl
-                ? `<div class="favorite-image">
-                     <img src="${favorite.imageUrl}" alt="${favorite.title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                     <div class="image-fallback" style="display:none;">🔗</div>
-                   </div>`
-                : `<div class="favorite-icon">🔗</div>`;
+            let imageElement;
+            if (favorite.imageUrl) {
+                const imageDiv = document.createElement('div');
+                imageDiv.className = 'favorite-image';
+                const img = document.createElement('img');
+                img.src = favorite.imageUrl;
+                img.alt = favorite.title;
+                img.onerror = function () {
+                    this.style.display = 'none';
+                    this.nextElementSibling.style.display = 'block';
+                };
+                const fallback = document.createElement('div');
+                fallback.className = 'image-fallback';
+                fallback.style.display = 'none';
+                fallback.textContent = '🔗';
+                imageDiv.appendChild(img);
+                imageDiv.appendChild(fallback);
+                imageElement = imageDiv;
+            } else {
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'favorite-icon';
+                iconDiv.textContent = '🔗';
+                imageElement = iconDiv;
+            }
 
-            item.innerHTML = `
-        ${imageHtml}
-        <div class="favorite-info">
-          <div class="favorite-title" title="${favorite.title}">${truncatedTitle}</div>
-          <div class="favorite-url">${favorite.url}</div>
-          <div class="favorite-meta">
-            ${favorite.category ? `カテゴリー: ${favorite.category}` : ''}
-            ${favorite.category ? ' | ' : ''}${new Date(favorite.timestamp).toLocaleDateString()}
-          </div>
-          <div class="favorite-tags">
-            ${favorite.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
-          </div>
-        </div>
-        <div class="favorite-actions">
-          <button class="edit-btn" data-id="${favorite.id}">編集</button>
-          <button class="delete-btn" data-id="${favorite.id}">削除</button>
-        </div>
-      `;
+            // 情報部分
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'favorite-info';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'favorite-title';
+            titleDiv.title = favorite.title;
+            titleDiv.textContent = truncatedTitle;
+
+            const urlDiv = document.createElement('div');
+            urlDiv.className = 'favorite-url';
+            urlDiv.textContent = favorite.url;
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'favorite-meta';
+            let metaText = '';
+            if (favorite.category) {
+                metaText += `カテゴリー: ${favorite.category}`;
+            }
+            if (favorite.category) {
+                metaText += ' | ';
+            }
+            metaText += new Date(favorite.timestamp).toLocaleDateString();
+            metaDiv.textContent = metaText;
+
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = 'favorite-tags';
+            favorite.tags.forEach(tag => {
+                const tagSpan = document.createElement('span');
+                tagSpan.className = 'tag';
+                tagSpan.textContent = tag;
+                tagsDiv.appendChild(tagSpan);
+            });
+
+            infoDiv.appendChild(titleDiv);
+            infoDiv.appendChild(urlDiv);
+            infoDiv.appendChild(metaDiv);
+            infoDiv.appendChild(tagsDiv);
+
+            // アクション部分
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'favorite-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit-btn';
+            editBtn.dataset.id = favorite.id;
+            editBtn.textContent = '編集';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.dataset.id = favorite.id;
+            deleteBtn.textContent = '削除';
+
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(deleteBtn);
+
+            // アイテムを組み立て
+            item.appendChild(imageElement);
+            item.appendChild(infoDiv);
+            item.appendChild(actionsDiv);
 
             // クリックでページを開く
             item.addEventListener('click', (e) => {
@@ -580,17 +661,12 @@ class FavoritesManager {
                 }
             });
 
-            // 編集ボタン
-            const editBtn = item.querySelector('.edit-btn');
-            if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
-                    console.log('編集ボタンがクリックされました:', favorite.id);
-                    e.stopPropagation();
-                    this.editFavorite(favorite.id);
-                });
-            } else {
-                console.error('編集ボタンが見つかりません');
-            }
+            // 編集ボタンのイベントリスナーを追加
+            editBtn.addEventListener('click', (e) => {
+                console.log('編集ボタンがクリックされました:', favorite.id);
+                e.stopPropagation();
+                this.editFavorite(favorite.id);
+            });
 
             // 削除ボタン
             item.querySelector('.delete-btn').addEventListener('click', (e) => {
@@ -643,11 +719,11 @@ class FavoritesManager {
     async openWebView() {
         try {
             const webViewUrl = browser.runtime.getURL('web-view.html');
-            
+
             // 既存のWebViewタブを検索
             const tabs = await browser.tabs.query({});
             const existingTab = tabs.find(tab => tab.url === webViewUrl);
-            
+
             if (existingTab) {
                 // 既存のタブがある場合はそのタブに移動
                 await browser.tabs.update(existingTab.id, { active: true });
@@ -698,38 +774,38 @@ class FavoritesManager {
             }
             console.log('編集対象のお気に入り:', favorite);
 
-        // 編集フォームに値を設定
-        const editTitleEl = document.getElementById('edit-title');
-        const editUrlEl = document.getElementById('edit-url');
-        const editImageUrlEl = document.getElementById('edit-image-url');
-        
-        if (!editTitleEl || !editUrlEl || !editImageUrlEl) {
-            console.error('編集フォーム要素が見つかりません');
-            return;
-        }
-        
-        editTitleEl.value = favorite.title || '';
-        editUrlEl.value = favorite.url || '';
-        editImageUrlEl.value = favorite.imageUrl || '';
-        
-        // カテゴリーを設定
-        const editCategorySelect = document.getElementById('edit-category');
-        editCategorySelect.value = favorite.category || '';
-        
-        // タグを設定
-        this.editingFavoriteId = id;
-        this.editSelectedTags = new Set(favorite.tags || []);
-        
-        // 編集用のカテゴリーとタグを読み込み
-        this.loadEditCategories();
-        this.loadEditTags();
-        this.updateEditSelectedTags();
-        
-        // 編集タブを表示して切り替え
-        const editTabBtn = document.querySelector('[data-tab="edit"]');
-        editTabBtn.style.display = 'block';
-        this.switchTab('edit');
-        
+            // 編集フォームに値を設定
+            const editTitleEl = document.getElementById('edit-title');
+            const editUrlEl = document.getElementById('edit-url');
+            const editImageUrlEl = document.getElementById('edit-image-url');
+
+            if (!editTitleEl || !editUrlEl || !editImageUrlEl) {
+                console.error('編集フォーム要素が見つかりません');
+                return;
+            }
+
+            editTitleEl.value = favorite.title || '';
+            editUrlEl.value = favorite.url || '';
+            editImageUrlEl.value = favorite.imageUrl || '';
+
+            // カテゴリーを設定
+            const editCategorySelect = document.getElementById('edit-category');
+            editCategorySelect.value = favorite.category || '';
+
+            // タグを設定
+            this.editingFavoriteId = id;
+            this.editSelectedTags = new Set(favorite.tags || []);
+
+            // 編集用のカテゴリーとタグを読み込み
+            this.loadEditCategories();
+            this.loadEditTags();
+            this.updateEditSelectedTags();
+
+            // 編集タブを表示して切り替え
+            const editTabBtn = document.querySelector('[data-tab="edit"]');
+            editTabBtn.style.display = 'block';
+            this.switchTab('edit');
+
         } catch (error) {
             console.error('editFavoriteエラー:', error);
             alert('編集画面の表示中にエラーが発生しました: ' + error.message);
@@ -790,7 +866,7 @@ class FavoritesManager {
             const result = await browser.storage.local.get(['favorites']);
             const favorites = result.favorites || [];
             const favoriteIndex = favorites.findIndex(fav => fav.id === this.editingFavoriteId);
-            
+
             if (favoriteIndex === -1) {
                 console.error('更新対象のお気に入りが見つかりません');
                 return;
@@ -830,7 +906,11 @@ class FavoritesManager {
     // 編集用カテゴリーを読み込み
     async loadEditCategories() {
         const categorySelect = document.getElementById('edit-category');
-        categorySelect.innerHTML = '<option value="">カテゴリーを選択</option>';
+        categorySelect.textContent = '';
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'カテゴリーを選択';
+        categorySelect.appendChild(defaultOption);
 
         // allCategoriesが未定義の場合は読み込み
         if (!this.allCategories) {
@@ -851,7 +931,7 @@ class FavoritesManager {
     // 編集用タグを読み込み
     async loadEditTags() {
         const container = document.getElementById('edit-existing-tags');
-        container.innerHTML = '';
+        container.textContent = '';
 
         // allTagsが未定義の場合は読み込み
         if (!this.allTags) {
@@ -861,19 +941,19 @@ class FavoritesManager {
 
         if (this.allTags && Array.isArray(this.allTags)) {
             this.allTags.forEach(tag => {
-            const tagElement = document.createElement('span');
-            tagElement.className = 'existing-tag';
-            tagElement.textContent = tag;
-            tagElement.addEventListener('click', () => {
-                if (this.editSelectedTags.has(tag)) {
-                    this.editSelectedTags.delete(tag);
-                } else {
-                    this.editSelectedTags.add(tag);
-                }
-                this.updateEditSelectedTags();
+                const tagElement = document.createElement('span');
+                tagElement.className = 'existing-tag';
+                tagElement.textContent = tag;
+                tagElement.addEventListener('click', () => {
+                    if (this.editSelectedTags.has(tag)) {
+                        this.editSelectedTags.delete(tag);
+                    } else {
+                        this.editSelectedTags.add(tag);
+                    }
+                    this.updateEditSelectedTags();
+                });
+                container.appendChild(tagElement);
             });
-            container.appendChild(tagElement);
-        });
         } else {
             console.warn('allTagsが配列ではありません:', this.allTags);
         }
@@ -882,18 +962,24 @@ class FavoritesManager {
     // 編集用選択済みタグを更新
     updateEditSelectedTags() {
         const container = document.getElementById('edit-selected-tags');
-        container.innerHTML = '';
+        container.textContent = '';
 
         this.editSelectedTags.forEach(tag => {
             const tagElement = document.createElement('span');
             tagElement.className = 'selected-tag';
-            tagElement.innerHTML = `${tag} <span class="remove-tag" data-tag="${tag}">×</span>`;
-            
-            tagElement.querySelector('.remove-tag').addEventListener('click', () => {
+            tagElement.textContent = tag + ' ';
+
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-tag';
+            removeBtn.dataset.tag = tag;
+            removeBtn.textContent = '×';
+            tagElement.appendChild(removeBtn);
+
+            removeBtn.addEventListener('click', () => {
                 this.editSelectedTags.delete(tag);
                 this.updateEditSelectedTags();
             });
-            
+
             container.appendChild(tagElement);
         });
 

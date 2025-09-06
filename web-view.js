@@ -120,7 +120,12 @@ class WebFavoritesViewer {
 
     loadCategories() {
         const filterSelect = document.getElementById('filter-category');
-        filterSelect.innerHTML = '<option value="">全カテゴリー</option>';
+        filterSelect.textContent = '';
+        
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '全カテゴリー';
+        filterSelect.appendChild(defaultOption);
 
         this.allCategories.forEach(category => {
             const option = new Option(category, category);
@@ -140,12 +145,16 @@ class WebFavoritesViewer {
 
         if (favorites.length === 0) {
             console.log('WebView: お気に入りが0件のため、メッセージを表示');
-            container.innerHTML = `
-                <div class="no-favorites">
-                    <h3>お気に入りがありません</h3>
-                    <p>拡張機能のポップアップからお気に入りを追加してください</p>
-                </div>
-            `;
+            container.textContent = '';
+            const noFavDiv = document.createElement('div');
+            noFavDiv.className = 'no-favorites';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'お気に入りがありません';
+            const p = document.createElement('p');
+            p.textContent = '拡張機能のポップアップからお気に入りを追加してください';
+            noFavDiv.appendChild(h3);
+            noFavDiv.appendChild(p);
+            container.appendChild(noFavDiv);
             this.updatePagination(0);
             return;
         }
@@ -154,12 +163,17 @@ class WebFavoritesViewer {
         const endIndex = startIndex + this.itemsPerPage;
         const itemsToShow = favorites.slice(0, endIndex);
 
-        const html = itemsToShow.map(favorite => this.createFavoriteCard(favorite)).join('');
+        const fragment = document.createDocumentFragment();
+        itemsToShow.forEach(favorite => {
+            const cardElement = this.createFavoriteCard(favorite);
+            fragment.appendChild(cardElement);
+        });
 
         if (append) {
-            container.insertAdjacentHTML('beforeend', html);
+            container.appendChild(fragment);
         } else {
-            container.innerHTML = html;
+            container.textContent = '';
+            container.appendChild(fragment);
         }
 
         // クリックイベントリスナーを追加
@@ -170,32 +184,97 @@ class WebFavoritesViewer {
     }
 
     createFavoriteCard(favorite) {
-        return `
-            <div class="favorite-card" data-url="${this.escapeHtml(favorite.url)}" data-id="${favorite.id}">
-                <div class="favorite-image">
-                    ${favorite.imageUrl
-                ? `<img src="${favorite.imageUrl}" alt="${favorite.title}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                           <div class="image-fallback" style="display:none;">🔗</div>`
-                : `<div class="image-fallback">🔗</div>`
-            }
-                </div>
-                <div class="favorite-content">
-                    <div class="favorite-title">${this.escapeHtml(favorite.title)}</div>
-                    <div class="favorite-url">${this.escapeHtml(favorite.url)}</div>
-                    <div class="favorite-meta">
-                        ${favorite.category ? `カテゴリー: ${this.escapeHtml(favorite.category)} | ` : ''}
-                        ${new Date(favorite.timestamp).toLocaleDateString()}
-                    </div>
-                    <div class="favorite-tags">
-                        ${favorite.tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}
-                    </div>
-                </div>
-                <div class="favorite-actions">
-                    <button class="action-btn edit-btn" data-id="${favorite.id}">編集</button>
-                    <button class="action-btn delete-btn" data-id="${favorite.id}">削除</button>
-                </div>
-            </div>
-        `;
+        const card = document.createElement('div');
+        card.className = 'favorite-card';
+        card.dataset.url = favorite.url;
+        card.dataset.id = favorite.id;
+
+        // Image section
+        const imageDiv = document.createElement('div');
+        imageDiv.className = 'favorite-image';
+        
+        if (favorite.imageUrl) {
+            const img = document.createElement('img');
+            img.src = favorite.imageUrl;
+            img.alt = favorite.title;
+            img.loading = 'lazy';
+            img.onerror = function() {
+                this.style.display = 'none';
+                this.nextElementSibling.style.display = 'flex';
+            };
+            
+            const fallback = document.createElement('div');
+            fallback.className = 'image-fallback';
+            fallback.style.display = 'none';
+            fallback.textContent = '🔗';
+            
+            imageDiv.appendChild(img);
+            imageDiv.appendChild(fallback);
+        } else {
+            const fallback = document.createElement('div');
+            fallback.className = 'image-fallback';
+            fallback.textContent = '🔗';
+            imageDiv.appendChild(fallback);
+        }
+
+        // Content section
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'favorite-content';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'favorite-title';
+        titleDiv.textContent = favorite.title;
+
+        const urlDiv = document.createElement('div');
+        urlDiv.className = 'favorite-url';
+        urlDiv.textContent = favorite.url;
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'favorite-meta';
+        let metaText = '';
+        if (favorite.category) {
+            metaText += `カテゴリー: ${favorite.category} | `;
+        }
+        metaText += new Date(favorite.timestamp).toLocaleDateString();
+        metaDiv.textContent = metaText;
+
+        const tagsDiv = document.createElement('div');
+        tagsDiv.className = 'favorite-tags';
+        favorite.tags.forEach(tag => {
+            const tagSpan = document.createElement('span');
+            tagSpan.className = 'tag';
+            tagSpan.textContent = tag;
+            tagsDiv.appendChild(tagSpan);
+        });
+
+        contentDiv.appendChild(titleDiv);
+        contentDiv.appendChild(urlDiv);
+        contentDiv.appendChild(metaDiv);
+        contentDiv.appendChild(tagsDiv);
+
+        // Actions section
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'favorite-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'action-btn edit-btn';
+        editBtn.dataset.id = favorite.id;
+        editBtn.textContent = '編集';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'action-btn delete-btn';
+        deleteBtn.dataset.id = favorite.id;
+        deleteBtn.textContent = '削除';
+
+        actionsDiv.appendChild(editBtn);
+        actionsDiv.appendChild(deleteBtn);
+
+        // Assemble card
+        card.appendChild(imageDiv);
+        card.appendChild(contentDiv);
+        card.appendChild(actionsDiv);
+
+        return card;
     }
 
     escapeHtml(text) {
@@ -313,56 +392,158 @@ class WebFavoritesViewer {
         // モーダルを作成
         const modal = document.createElement('div');
         modal.className = 'edit-modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>お気に入りを編集</h3>
-                    <button class="close-btn">&times;</button>
-                </div>
-                <form class="edit-form">
-                    <div class="form-group">
-                        <label for="edit-title">タイトル</label>
-                        <input type="text" id="edit-title" value="${this.escapeHtml(favorite.title)}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-url">URL</label>
-                        <input type="url" id="edit-url" value="${this.escapeHtml(favorite.url)}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-image-url">画像URL</label>
-                        <input type="url" id="edit-image-url" value="${favorite.imageUrl || ''}">
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-category">カテゴリー</label>
-                        <select id="edit-category">
-                            <option value="">カテゴリーを選択</option>
-                            ${this.allCategories.map(cat =>
-            `<option value="${this.escapeHtml(cat)}" ${cat === favorite.category ? 'selected' : ''}>${this.escapeHtml(cat)}</option>`
-        ).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-new-category">新しいカテゴリー</label>
-                        <input type="text" id="edit-new-category" placeholder="新しいカテゴリー名">
-                    </div>
-                    <div class="form-group">
-                        <label>タグ</label>
-                        <div class="tags-container">
-                            <div class="selected-tags" id="edit-selected-tags">
-                                ${favorite.tags.map(tag =>
-            `<span class="selected-tag">${this.escapeHtml(tag)} <span class="remove-tag" data-tag="${this.escapeHtml(tag)}">&times;</span></span>`
-        ).join('')}
-                            </div>
-                            <input type="text" id="edit-tags-input" placeholder="新しいタグを入力（Enterで追加）">
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn primary">更新</button>
-                        <button type="button" class="btn cancel-btn">キャンセル</button>
-                    </div>
-                </form>
-            </div>
-        `;
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent = 'お気に入りを編集';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'close-btn';
+        closeBtn.textContent = '×';
+        header.appendChild(h3);
+        header.appendChild(closeBtn);
+        
+        // Form
+        const form = document.createElement('form');
+        form.className = 'edit-form';
+        
+        // Title field
+        const titleGroup = document.createElement('div');
+        titleGroup.className = 'form-group';
+        const titleLabel = document.createElement('label');
+        titleLabel.setAttribute('for', 'edit-title');
+        titleLabel.textContent = 'タイトル';
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.id = 'edit-title';
+        titleInput.value = favorite.title;
+        titleInput.required = true;
+        titleGroup.appendChild(titleLabel);
+        titleGroup.appendChild(titleInput);
+        
+        // URL field
+        const urlGroup = document.createElement('div');
+        urlGroup.className = 'form-group';
+        const urlLabel = document.createElement('label');
+        urlLabel.setAttribute('for', 'edit-url');
+        urlLabel.textContent = 'URL';
+        const urlInput = document.createElement('input');
+        urlInput.type = 'url';
+        urlInput.id = 'edit-url';
+        urlInput.value = favorite.url;
+        urlInput.required = true;
+        urlGroup.appendChild(urlLabel);
+        urlGroup.appendChild(urlInput);
+        
+        // Image URL field
+        const imageGroup = document.createElement('div');
+        imageGroup.className = 'form-group';
+        const imageLabel = document.createElement('label');
+        imageLabel.setAttribute('for', 'edit-image-url');
+        imageLabel.textContent = '画像URL';
+        const imageInput = document.createElement('input');
+        imageInput.type = 'url';
+        imageInput.id = 'edit-image-url';
+        imageInput.value = favorite.imageUrl || '';
+        imageGroup.appendChild(imageLabel);
+        imageGroup.appendChild(imageInput);
+        
+        // Category field
+        const categoryGroup = document.createElement('div');
+        categoryGroup.className = 'form-group';
+        const categoryLabel = document.createElement('label');
+        categoryLabel.setAttribute('for', 'edit-category');
+        categoryLabel.textContent = 'カテゴリー';
+        const categorySelect = document.createElement('select');
+        categorySelect.id = 'edit-category';
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'カテゴリーを選択';
+        categorySelect.appendChild(defaultOption);
+        this.allCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            if (cat === favorite.category) option.selected = true;
+            categorySelect.appendChild(option);
+        });
+        categoryGroup.appendChild(categoryLabel);
+        categoryGroup.appendChild(categorySelect);
+        
+        // New category field
+        const newCategoryGroup = document.createElement('div');
+        newCategoryGroup.className = 'form-group';
+        const newCategoryLabel = document.createElement('label');
+        newCategoryLabel.setAttribute('for', 'edit-new-category');
+        newCategoryLabel.textContent = '新しいカテゴリー';
+        const newCategoryInput = document.createElement('input');
+        newCategoryInput.type = 'text';
+        newCategoryInput.id = 'edit-new-category';
+        newCategoryInput.placeholder = '新しいカテゴリー名';
+        newCategoryGroup.appendChild(newCategoryLabel);
+        newCategoryGroup.appendChild(newCategoryInput);
+        
+        // Tags field
+        const tagsGroup = document.createElement('div');
+        tagsGroup.className = 'form-group';
+        const tagsLabel = document.createElement('label');
+        tagsLabel.textContent = 'タグ';
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'tags-container';
+        const selectedTags = document.createElement('div');
+        selectedTags.className = 'selected-tags';
+        selectedTags.id = 'edit-selected-tags';
+        favorite.tags.forEach(tag => {
+            const tagSpan = document.createElement('span');
+            tagSpan.className = 'selected-tag';
+            tagSpan.textContent = tag + ' ';
+            const removeSpan = document.createElement('span');
+            removeSpan.className = 'remove-tag';
+            removeSpan.dataset.tag = tag;
+            removeSpan.textContent = '×';
+            tagSpan.appendChild(removeSpan);
+            selectedTags.appendChild(tagSpan);
+        });
+        const tagsInput = document.createElement('input');
+        tagsInput.type = 'text';
+        tagsInput.id = 'edit-tags-input';
+        tagsInput.placeholder = '新しいタグを入力（Enterで追加）';
+        tagsContainer.appendChild(selectedTags);
+        tagsContainer.appendChild(tagsInput);
+        tagsGroup.appendChild(tagsLabel);
+        tagsGroup.appendChild(tagsContainer);
+        
+        // Actions
+        const actionsGroup = document.createElement('div');
+        actionsGroup.className = 'form-actions';
+        const submitBtn = document.createElement('button');
+        submitBtn.type = 'submit';
+        submitBtn.className = 'btn primary';
+        submitBtn.textContent = '更新';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn cancel-btn';
+        cancelBtn.textContent = 'キャンセル';
+        actionsGroup.appendChild(submitBtn);
+        actionsGroup.appendChild(cancelBtn);
+        
+        // Assemble form
+        form.appendChild(titleGroup);
+        form.appendChild(urlGroup);
+        form.appendChild(imageGroup);
+        form.appendChild(categoryGroup);
+        form.appendChild(newCategoryGroup);
+        form.appendChild(tagsGroup);
+        form.appendChild(actionsGroup);
+        
+        // Assemble modal
+        modalContent.appendChild(header);
+        modalContent.appendChild(form);
+        modal.appendChild(modalContent);
 
         document.body.appendChild(modal);
         this.setupEditModalEvents(modal, favoriteId, favorite.tags);
@@ -419,9 +600,18 @@ class WebFavoritesViewer {
 
     updateSelectedTagsDisplay(modal, selectedTags) {
         const container = modal.querySelector('#edit-selected-tags');
-        container.innerHTML = Array.from(selectedTags).map(tag =>
-            `<span class="selected-tag">${this.escapeHtml(tag)} <span class="remove-tag" data-tag="${this.escapeHtml(tag)}">&times;</span></span>`
-        ).join('');
+        container.textContent = '';
+        Array.from(selectedTags).forEach(tag => {
+            const tagSpan = document.createElement('span');
+            tagSpan.className = 'selected-tag';
+            tagSpan.textContent = tag + ' ';
+            const removeSpan = document.createElement('span');
+            removeSpan.className = 'remove-tag';
+            removeSpan.dataset.tag = tag;
+            removeSpan.textContent = '×';
+            tagSpan.appendChild(removeSpan);
+            container.appendChild(tagSpan);
+        });
     }
 
     async updateFavorite(modal, favoriteId, selectedTags) {
@@ -539,13 +729,21 @@ class WebFavoritesViewer {
 
     showError(message) {
         const container = document.getElementById('favorites-grid');
-        container.innerHTML = `
-            <div class="no-favorites">
-                <h3>エラーが発生しました</h3>
-                <p>${message}</p>
-                <button class="refresh-btn" onclick="location.reload()">再読み込み</button>
-            </div>
-        `;
+        container.textContent = '';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'no-favorites';
+        const h3 = document.createElement('h3');
+        h3.textContent = 'エラーが発生しました';
+        const p = document.createElement('p');
+        p.textContent = message;
+        const button = document.createElement('button');
+        button.className = 'refresh-btn';
+        button.textContent = '再読み込み';
+        button.onclick = () => location.reload();
+        errorDiv.appendChild(h3);
+        errorDiv.appendChild(p);
+        errorDiv.appendChild(button);
+        container.appendChild(errorDiv);
     }
 }
 
@@ -559,13 +757,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // browser APIの存在確認
     if (typeof browser === 'undefined') {
         console.error('WebView: browser API が利用できません');
-        document.getElementById('favorites-grid').innerHTML = `
-            <div class="no-favorites">
-                <h3>拡張機能APIにアクセスできません</h3>
-                <p>この画面は拡張機能のコンテキストで開く必要があります。</p>
-                <p>拡張機能のポップアップから「Web画面で開く」ボタンを使用してください。</p>
-            </div>
-        `;
+        const container = document.getElementById('favorites-grid');
+        container.textContent = '';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'no-favorites';
+        const h3 = document.createElement('h3');
+        h3.textContent = '拡張機能APIにアクセスできません';
+        const p1 = document.createElement('p');
+        p1.textContent = 'この画面は拡張機能のコンテキストで開く必要があります。';
+        const p2 = document.createElement('p');
+        p2.textContent = '拡張機能のポップアップから「Web画面で開く」ボタンを使用してください。';
+        errorDiv.appendChild(h3);
+        errorDiv.appendChild(p1);
+        errorDiv.appendChild(p2);
+        container.appendChild(errorDiv);
         return;
     }
 

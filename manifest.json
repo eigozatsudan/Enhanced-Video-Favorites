@@ -26,5 +26,11 @@
     "web-view.js"
   ],
   
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "enhanced-video-favorites@example.com"
+    }
+  },
+  
   "content_security_policy": "script-src 'self'; object-src 'self'"
 }
