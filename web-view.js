@@ -252,8 +252,8 @@ class WebFavoritesViewer {
             container.appendChild(fragment);
         }
 
-        // クリックイベントリスナーを追加
-        this.addCardClickListeners(append ? fragment : container);
+        // クリックイベントリスナーを追加（DOMに追加後に実行）
+        this.addCardClickListeners(container);
 
         this.updatePagination(favorites.length);
         this.updateLoadingState(false);
@@ -362,8 +362,11 @@ class WebFavoritesViewer {
     }
 
     addCardClickListeners(container) {
-        const cards = container.querySelectorAll('.favorite-card[data-url]');
+        const cards = container.querySelectorAll('.favorite-card[data-url]:not([data-listeners-added])');
         cards.forEach(card => {
+            // 重複処理を防ぐためのマーク
+            card.dataset.listenersAdded = 'true';
+
             // カードクリック（ページを開く）
             card.addEventListener('click', this.handleCardClick.bind(this));
 
