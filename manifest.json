@@ -28,7 +28,8 @@
   
   "browser_specific_settings": {
     "gecko": {
-      "id": "enhanced-video-favorites@example.com"
+      "id": "enhanced-video-favorites@example.com",
+      "data_collection_permissions": false
     }
   },
   
