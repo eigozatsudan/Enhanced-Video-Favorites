@@ -8,6 +8,7 @@ class WebFavoritesViewer {
         this.currentPage = 1;
         this.itemsPerPage = 20;
         this.isLoading = false;
+        this.selectedTag = null; // 選択されたタグ
         this.init();
     }
 
@@ -16,8 +17,7 @@ class WebFavoritesViewer {
         await this.loadData();
         console.log('WebView: loadData完了、データ件数:', this.allFavorites.length);
         this.setupEventListeners();
-        this.filteredFavorites = [...this.allFavorites];
-        this.displayFavorites();
+        this.filterFavorites(); // ソートも含めて初期表示
         this.updateStats();
         console.log('WebView: init完了');
     }
@@ -40,11 +40,16 @@ class WebFavoritesViewer {
             this.filterFavorites();
         });
 
+        // ソート順変更
+        document.getElementById('sort-order').addEventListener('change', () => {
+            this.filterFavorites();
+        });
+
         // ページサイズ変更
         document.getElementById('items-per-page').addEventListener('change', (e) => {
             this.itemsPerPage = parseInt(e.target.value);
             this.currentPage = 1;
-            this.displayFavorites();
+            this.displayFavorites(false); // 新規表示として処理
         });
 
         // 無限スクロール
@@ -144,9 +149,7 @@ class WebFavoritesViewer {
                 console.log('WebView: お気に入りID一覧:', this.allFavorites.map(f => f.id));
 
                 this.loadCategories();
-                this.filteredFavorites = [...this.allFavorites];
-                this.currentPage = 1;
-                this.displayFavorites();
+                this.filterFavorites(); // ソートも含めて表示
                 this.updateStats();
             } else {
                 console.error('データ取得失敗:', response);
@@ -176,7 +179,7 @@ class WebFavoritesViewer {
 
     displayFavorites(append = false) {
         const favorites = this.filteredFavorites;
-        console.log('WebView: displayFavorites呼び出し', favorites.length, '件');
+        console.log('WebView: displayFavorites呼び出し', favorites.length, '件', append ? '(追加モード)' : '(新規表示)');
         const container = document.getElementById('favorites-grid');
 
         if (!container) {
@@ -200,12 +203,33 @@ class WebFavoritesViewer {
             return;
         }
 
-        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-        const endIndex = startIndex + this.itemsPerPage;
-        const itemsToShow = favorites.slice(0, endIndex);
+        let itemsToShow;
+        let displayedUrls = new Set();
+
+        if (append) {
+            // 追加モードの場合：既に表示されているURLを記録
+            const existingCards = container.querySelectorAll('.favorite-card[data-url]');
+            existingCards.forEach(card => {
+                const url = card.dataset.url;
+                if (url) {
+                    displayedUrls.add(url.toLowerCase().trim());
+                }
+            });
+
+            // 新しいページのアイテムのみを取得
+            const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+            const endIndex = startIndex + this.itemsPerPage;
+            itemsToShow = favorites.slice(startIndex, endIndex);
+            console.log(`WebView: 追加表示 - ${startIndex}から${endIndex}まで (${itemsToShow.length}件)`);
+        } else {
+            // 新規表示の場合：最初のページのみ
+            const endIndex = this.itemsPerPage;
+            itemsToShow = favorites.slice(0, endIndex);
+            console.log(`WebView: 新規表示 - 0から${endIndex}まで (${itemsToShow.length}件)`);
+        }
 
         const fragment = document.createDocumentFragment();
-        const displayedUrls = new Set();
+        let addedCount = 0;
 
         itemsToShow.forEach(favorite => {
             const urlKey = favorite.url.toLowerCase().trim();
@@ -213,10 +237,13 @@ class WebFavoritesViewer {
                 displayedUrls.add(urlKey);
                 const cardElement = this.createFavoriteCard(favorite);
                 fragment.appendChild(cardElement);
+                addedCount++;
             } else {
                 console.log(`WebView: 表示時に重複URL検出、スキップ: ${favorite.url}`);
             }
         });
+
+        console.log(`WebView: ${addedCount}件のカードを${append ? '追加' : '表示'}`);
 
         if (append) {
             container.appendChild(fragment);
@@ -226,7 +253,7 @@ class WebFavoritesViewer {
         }
 
         // クリックイベントリスナーを追加
-        this.addCardClickListeners(container);
+        this.addCardClickListeners(append ? fragment : container);
 
         this.updatePagination(favorites.length);
         this.updateLoadingState(false);
@@ -291,8 +318,10 @@ class WebFavoritesViewer {
         tagsDiv.className = 'favorite-tags';
         favorite.tags.forEach(tag => {
             const tagSpan = document.createElement('span');
-            tagSpan.className = 'tag';
+            tagSpan.className = 'tag clickable-tag';
             tagSpan.textContent = tag;
+            tagSpan.dataset.tag = tag;
+            tagSpan.title = `「${tag}」でフィルタリング`;
             tagsDiv.appendChild(tagSpan);
         });
 
@@ -349,12 +378,39 @@ class WebFavoritesViewer {
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', this.handleDeleteClick.bind(this));
             }
+
+            // タグクリック
+            const tags = card.querySelectorAll('.clickable-tag');
+            tags.forEach(tag => {
+                tag.addEventListener('click', this.handleTagClick.bind(this));
+            });
         });
     }
 
+    handleTagClick(event) {
+        event.stopPropagation(); // カードクリックを防ぐ
+        const tag = event.target.dataset.tag;
+
+        if (this.selectedTag === tag) {
+            // 同じタグをクリックした場合はフィルターを解除
+            this.selectedTag = null;
+            console.log('WebView: タグフィルターを解除');
+        } else {
+            // 新しいタグでフィルター
+            this.selectedTag = tag;
+            console.log('WebView: タグでフィルター:', tag);
+        }
+
+        // 検索フィールドをクリアしてタグフィルターを適用
+        document.getElementById('search').value = '';
+        this.filterFavorites();
+        this.updateTagFilterDisplay();
+    }
+
     async handleCardClick(event) {
-        // ボタンクリックの場合は無視
-        if (event.target.classList.contains('action-btn')) {
+        // ボタンクリックやタグクリックの場合は無視
+        if (event.target.classList.contains('action-btn') ||
+            event.target.classList.contains('clickable-tag')) {
             return;
         }
 
@@ -745,14 +801,111 @@ class WebFavoritesViewer {
         }
     }
 
+    sortFavorites(favorites, sortOrder) {
+        const sorted = [...favorites];
+
+        switch (sortOrder) {
+            case 'newest':
+                return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            case 'oldest':
+                return sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            case 'title-asc':
+                return sorted.sort((a, b) => a.title.localeCompare(b.title, 'ja'));
+            case 'title-desc':
+                return sorted.sort((a, b) => b.title.localeCompare(a.title, 'ja'));
+            case 'url-asc':
+                return sorted.sort((a, b) => a.url.localeCompare(b.url));
+            case 'url-desc':
+                return sorted.sort((a, b) => b.url.localeCompare(a.url));
+            default:
+                return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+    }
+
+    updateTagFilterDisplay() {
+        // タグフィルター表示の更新
+        let existingTagFilter = document.getElementById('tag-filter-display');
+
+        if (this.selectedTag) {
+            if (!existingTagFilter) {
+                // タグフィルター表示を作成
+                const controlsDiv = document.querySelector('.controls');
+                const tagFilterDiv = document.createElement('div');
+                tagFilterDiv.id = 'tag-filter-display';
+                tagFilterDiv.style.cssText = `
+                    background: #e3f2fd;
+                    padding: 10px;
+                    border-radius: 4px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                `;
+
+                const tagLabel = document.createElement('span');
+                tagLabel.textContent = 'タグフィルター:';
+                tagLabel.style.fontWeight = 'bold';
+
+                const tagBadge = document.createElement('span');
+                tagBadge.id = 'selected-tag-badge';
+                tagBadge.style.cssText = `
+                    background: #007bff;
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                `;
+
+                const clearBtn = document.createElement('button');
+                clearBtn.textContent = '✕ クリア';
+                clearBtn.style.cssText = `
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    cursor: pointer;
+                `;
+                clearBtn.addEventListener('click', () => {
+                    this.selectedTag = null;
+                    this.filterFavorites();
+                    this.updateTagFilterDisplay();
+                });
+
+                tagFilterDiv.appendChild(tagLabel);
+                tagFilterDiv.appendChild(tagBadge);
+                tagFilterDiv.appendChild(clearBtn);
+                controlsDiv.insertBefore(tagFilterDiv, controlsDiv.firstChild);
+                existingTagFilter = tagFilterDiv;
+            }
+
+            // タグ名を更新
+            const tagBadge = document.getElementById('selected-tag-badge');
+            if (tagBadge) {
+                tagBadge.textContent = this.selectedTag;
+            }
+        } else if (existingTagFilter) {
+            // タグフィルターを削除
+            existingTagFilter.remove();
+        }
+    }
+
     filterFavorites() {
         const searchTerm = document.getElementById('search').value.toLowerCase();
         const selectedCategory = document.getElementById('filter-category').value;
+        const sortOrder = document.getElementById('sort-order').value;
 
         let filtered = this.allFavorites;
 
         if (selectedCategory) {
             filtered = filtered.filter(fav => fav.category === selectedCategory);
+        }
+
+        if (this.selectedTag) {
+            filtered = filtered.filter(fav =>
+                fav.tags.some(tag => tag === this.selectedTag)
+            );
         }
 
         if (searchTerm) {
@@ -763,9 +916,12 @@ class WebFavoritesViewer {
             );
         }
 
+        // ソート処理
+        filtered = this.sortFavorites(filtered, sortOrder);
+
         this.filteredFavorites = filtered;
         this.currentPage = 1;
-        this.displayFavorites();
+        this.displayFavorites(false); // 新規表示として処理
     }
 
     updateStats() {
