@@ -60,6 +60,44 @@ class WebFavoritesViewer {
 
     }
 
+    removeDuplicates(favorites) {
+        const seen = new Map();
+        const uniqueFavorites = [];
+
+        favorites.forEach(favorite => {
+            const key = favorite.url.toLowerCase().trim();
+
+            if (!seen.has(key)) {
+                // 初回の場合はそのまま追加
+                seen.set(key, favorite);
+                uniqueFavorites.push(favorite);
+            } else {
+                // 重複の場合は、より新しいタイムスタンプのものを保持
+                const existing = seen.get(key);
+                if (favorite.timestamp > existing.timestamp) {
+                    // 既存のものを配列から削除
+                    const index = uniqueFavorites.findIndex(f => f.id === existing.id);
+                    if (index !== -1) {
+                        uniqueFavorites.splice(index, 1);
+                    }
+                    // 新しいものを追加
+                    seen.set(key, favorite);
+                    uniqueFavorites.push(favorite);
+                    console.log(`WebView: 重複URL検出、新しいものを保持: ${favorite.url}`);
+                } else {
+                    console.log(`WebView: 重複URL検出、古いものを無視: ${favorite.url}`);
+                }
+            }
+        });
+
+        const duplicateCount = favorites.length - uniqueFavorites.length;
+        if (duplicateCount > 0) {
+            console.log(`WebView: ${duplicateCount}件の重複を除去しました`);
+        }
+
+        return uniqueFavorites;
+    }
+
     async loadData() {
         try {
             console.log('WebView: データ読み込み開始');
@@ -91,12 +129,15 @@ class WebFavoritesViewer {
             console.log('WebView: 応答の内容:', JSON.stringify(response));
 
             if (response && response.success) {
-                this.allFavorites = response.data.favorites || [];
+                // 重複を除去（URLベースで重複チェック）
+                const rawFavorites = response.data.favorites || [];
+                this.allFavorites = this.removeDuplicates(rawFavorites);
                 this.allCategories = response.data.categories || [];
                 this.allTags = response.data.allTags || [];
 
                 console.log('WebView: 読み込まれたデータ:', {
-                    favorites: this.allFavorites.length,
+                    rawFavorites: rawFavorites.length,
+                    uniqueFavorites: this.allFavorites.length,
                     categories: this.allCategories.length,
                     tags: this.allTags.length
                 });
@@ -164,9 +205,17 @@ class WebFavoritesViewer {
         const itemsToShow = favorites.slice(0, endIndex);
 
         const fragment = document.createDocumentFragment();
+        const displayedUrls = new Set();
+
         itemsToShow.forEach(favorite => {
-            const cardElement = this.createFavoriteCard(favorite);
-            fragment.appendChild(cardElement);
+            const urlKey = favorite.url.toLowerCase().trim();
+            if (!displayedUrls.has(urlKey)) {
+                displayedUrls.add(urlKey);
+                const cardElement = this.createFavoriteCard(favorite);
+                fragment.appendChild(cardElement);
+            } else {
+                console.log(`WebView: 表示時に重複URL検出、スキップ: ${favorite.url}`);
+            }
         });
 
         if (append) {
