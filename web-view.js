@@ -307,12 +307,18 @@ class WebFavoritesViewer {
 
         const metaDiv = document.createElement('div');
         metaDiv.className = 'favorite-meta';
-        let metaText = '';
+        
+        // カテゴリーバッジを作成
+        const categoryBadge = document.createElement('span');
         if (favorite.category) {
-            metaText += `カテゴリー: ${favorite.category} | `;
+            categoryBadge.className = `category-badge ${this.getCategoryClass(favorite.category)}`;
+            categoryBadge.textContent = favorite.category;
+        } else {
+            categoryBadge.className = 'category-badge no-category';
+            categoryBadge.textContent = '未分類';
         }
-        metaText += new Date(favorite.timestamp).toLocaleDateString();
-        metaDiv.textContent = metaText;
+        
+        metaDiv.appendChild(categoryBadge);
 
         const tagsDiv = document.createElement('div');
         tagsDiv.className = 'favorite-tags';
@@ -359,6 +365,37 @@ class WebFavoritesViewer {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    getCategoryClass(category) {
+        if (!category) return '';
+        
+        // カテゴリー名を小文字にして、特殊文字を除去してクラス名を生成
+        const normalizedCategory = category.toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .substring(0, 20); // 長すぎる場合は切り詰め
+        
+        // 特定のカテゴリーに対応するクラス名のマッピング
+        const categoryMap = {
+            'video': 'category-video',
+            'music': 'category-music', 
+            'news': 'category-news',
+            'tech': 'category-tech',
+            'technology': 'category-tech',
+            'entertainment': 'category-entertainment',
+            'education': 'category-education',
+            'sports': 'category-sports',
+            'youtube': 'category-video',
+            'ニュース': 'category-news',
+            '音楽': 'category-music',
+            '動画': 'category-video',
+            '技術': 'category-tech',
+            '教育': 'category-education',
+            'エンターテイメント': 'category-entertainment',
+            'スポーツ': 'category-sports'
+        };
+        
+        return categoryMap[normalizedCategory] || '';
     }
 
     addCardClickListeners(container) {

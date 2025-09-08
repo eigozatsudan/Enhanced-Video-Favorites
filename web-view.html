@@ -154,10 +154,80 @@
         }
 
         .favorite-meta {
-            font-size: 11px;
-            color: #666;
-            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
         }
+
+        .category-badge {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .category-badge::before {
+            content: "📁";
+            font-size: 10px;
+        }
+
+        .category-badge.no-category {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+        }
+
+        .category-badge.no-category::before {
+            content: "📄";
+        }
+
+        /* カテゴリー別カラーバリエーション */
+        .category-badge.category-video {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+        }
+
+        .category-badge.category-music {
+            background: linear-gradient(135deg, #28a745, #1e7e34);
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+        }
+
+        .category-badge.category-news {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            color: #212529;
+            box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+        }
+
+        .category-badge.category-tech {
+            background: linear-gradient(135deg, #6f42c1, #59359a);
+            box-shadow: 0 2px 4px rgba(111, 66, 193, 0.3);
+        }
+
+        .category-badge.category-entertainment {
+            background: linear-gradient(135deg, #fd7e14, #e55a00);
+            box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
+        }
+
+        .category-badge.category-education {
+            background: linear-gradient(135deg, #20c997, #17a085);
+            box-shadow: 0 2px 4px rgba(32, 201, 151, 0.3);
+        }
+
+        .category-badge.category-sports {
+            background: linear-gradient(135deg, #e83e8c, #d91a72);
+            box-shadow: 0 2px 4px rgba(232, 62, 140, 0.3);
+        }
+
+
 
         .favorite-tags {
             display: flex;
