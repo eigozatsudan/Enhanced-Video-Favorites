@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Enhanced Video Favorites",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "動画サイト用の高機能お気に入り管理ツール",
   
   "permissions": [
@@ -28,7 +28,10 @@
   
   "browser_specific_settings": {
     "gecko": {
-      "id": "enhanced-video-favorites@example.com"
+      "id": "enhanced-video-favorites@example.com",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   
