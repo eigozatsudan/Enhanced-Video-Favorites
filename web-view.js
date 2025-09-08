@@ -121,7 +121,7 @@ class WebFavoritesViewer {
     loadCategories() {
         const filterSelect = document.getElementById('filter-category');
         filterSelect.textContent = '';
-        
+
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
         defaultOption.textContent = '全カテゴリー';
@@ -192,22 +192,22 @@ class WebFavoritesViewer {
         // Image section
         const imageDiv = document.createElement('div');
         imageDiv.className = 'favorite-image';
-        
+
         if (favorite.imageUrl) {
             const img = document.createElement('img');
             img.src = favorite.imageUrl;
             img.alt = favorite.title;
             img.loading = 'lazy';
-            img.onerror = function() {
+            img.onerror = function () {
                 this.style.display = 'none';
                 this.nextElementSibling.style.display = 'flex';
             };
-            
+
             const fallback = document.createElement('div');
             fallback.className = 'image-fallback';
             fallback.style.display = 'none';
             fallback.textContent = '🔗';
-            
+
             imageDiv.appendChild(img);
             imageDiv.appendChild(fallback);
         } else {
@@ -318,15 +318,14 @@ class WebFavoritesViewer {
             // browser APIが利用可能な場合はそれを使用
             if (browser && browser.tabs && browser.tabs.create) {
                 await browser.tabs.create({ url: url });
-            } else {
-                // フォールバック: window.openを使用
-                window.open(url, '_blank');
+                return; // 成功した場合はここで終了
             }
         } catch (error) {
-            console.error('ページを開くエラー:', error);
-            // エラーの場合はフォールバック
-            window.open(url, '_blank');
+            console.error('browser.tabs.createでエラー:', error);
         }
+
+        // browser APIが利用できない場合、またはエラーの場合のフォールバック
+        window.open(url, '_blank');
     }
 
     handleEditClick(event) {
@@ -392,10 +391,10 @@ class WebFavoritesViewer {
         // モーダルを作成
         const modal = document.createElement('div');
         modal.className = 'edit-modal';
-        
+
         const modalContent = document.createElement('div');
         modalContent.className = 'modal-content';
-        
+
         // Header
         const header = document.createElement('div');
         header.className = 'modal-header';
@@ -406,11 +405,11 @@ class WebFavoritesViewer {
         closeBtn.textContent = '×';
         header.appendChild(h3);
         header.appendChild(closeBtn);
-        
+
         // Form
         const form = document.createElement('form');
         form.className = 'edit-form';
-        
+
         // Title field
         const titleGroup = document.createElement('div');
         titleGroup.className = 'form-group';
@@ -424,7 +423,7 @@ class WebFavoritesViewer {
         titleInput.required = true;
         titleGroup.appendChild(titleLabel);
         titleGroup.appendChild(titleInput);
-        
+
         // URL field
         const urlGroup = document.createElement('div');
         urlGroup.className = 'form-group';
@@ -438,7 +437,7 @@ class WebFavoritesViewer {
         urlInput.required = true;
         urlGroup.appendChild(urlLabel);
         urlGroup.appendChild(urlInput);
-        
+
         // Image URL field
         const imageGroup = document.createElement('div');
         imageGroup.className = 'form-group';
@@ -451,7 +450,7 @@ class WebFavoritesViewer {
         imageInput.value = favorite.imageUrl || '';
         imageGroup.appendChild(imageLabel);
         imageGroup.appendChild(imageInput);
-        
+
         // Category field
         const categoryGroup = document.createElement('div');
         categoryGroup.className = 'form-group';
@@ -473,7 +472,7 @@ class WebFavoritesViewer {
         });
         categoryGroup.appendChild(categoryLabel);
         categoryGroup.appendChild(categorySelect);
-        
+
         // New category field
         const newCategoryGroup = document.createElement('div');
         newCategoryGroup.className = 'form-group';
@@ -486,7 +485,7 @@ class WebFavoritesViewer {
         newCategoryInput.placeholder = '新しいカテゴリー名';
         newCategoryGroup.appendChild(newCategoryLabel);
         newCategoryGroup.appendChild(newCategoryInput);
-        
+
         // Tags field
         const tagsGroup = document.createElement('div');
         tagsGroup.className = 'form-group';
@@ -516,7 +515,7 @@ class WebFavoritesViewer {
         tagsContainer.appendChild(tagsInput);
         tagsGroup.appendChild(tagsLabel);
         tagsGroup.appendChild(tagsContainer);
-        
+
         // Actions
         const actionsGroup = document.createElement('div');
         actionsGroup.className = 'form-actions';
@@ -530,7 +529,7 @@ class WebFavoritesViewer {
         cancelBtn.textContent = 'キャンセル';
         actionsGroup.appendChild(submitBtn);
         actionsGroup.appendChild(cancelBtn);
-        
+
         // Assemble form
         form.appendChild(titleGroup);
         form.appendChild(urlGroup);
@@ -539,7 +538,7 @@ class WebFavoritesViewer {
         form.appendChild(newCategoryGroup);
         form.appendChild(tagsGroup);
         form.appendChild(actionsGroup);
-        
+
         // Assemble modal
         modalContent.appendChild(header);
         modalContent.appendChild(form);
@@ -778,7 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
     webViewer = new WebFavoritesViewer();
 
     // メッセージリスナーを追加（データ更新通知を受信）
-    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         console.log('WebView: メッセージ受信:', message);
         if (message.action === 'dataUpdated' && webViewer) {
             console.log('WebView: データ更新通知を受信、リロード開始');
