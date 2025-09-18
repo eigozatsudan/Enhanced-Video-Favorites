@@ -9,12 +9,18 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 特定のURLがお気に入りに登録されているかチェック
     (async () => {
       try {
+        console.log('background.js: お気に入りステータスチェック開始:', message.url);
+        
         const result = await browser.storage.local.get(['favorites']);
         const favorites = result.favorites || [];
         const targetUrl = message.url;
         
+        console.log('background.js: 登録済みお気に入り数:', favorites.length);
+        console.log('background.js: チェック対象URL:', targetUrl);
+        
         // 完全一致チェック
         const exactMatch = favorites.find(fav => fav.url === targetUrl);
+        console.log('background.js: 完全一致:', !!exactMatch);
         
         // クリーンURL一致チェック（アンカーやクエリパラメータを除去）
         const getCleanUrl = (url) => {
@@ -28,16 +34,33 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         
         const cleanTargetUrl = getCleanUrl(targetUrl);
         const cleanMatch = favorites.find(fav => getCleanUrl(fav.url) === cleanTargetUrl);
+        console.log('background.js: クリーンURL一致:', !!cleanMatch);
+        console.log('background.js: クリーンURL:', cleanTargetUrl);
         
-        sendResponse({
+        const isFavorite = !!(exactMatch || cleanMatch);
+        const favoriteData = exactMatch || cleanMatch || null;
+        
+        console.log('background.js: 最終判定 - お気に入り登録済み:', isFavorite);
+        if (favoriteData) {
+          console.log('background.js: お気に入りデータ:', {
+            id: favoriteData.id,
+            title: favoriteData.title,
+            url: favoriteData.url
+          });
+        }
+        
+        const response = {
           success: true,
-          isFavorite: !!(exactMatch || cleanMatch),
+          isFavorite: isFavorite,
           exactMatch: !!exactMatch,
           cleanMatch: !!cleanMatch,
-          favoriteData: exactMatch || cleanMatch || null
-        });
+          favoriteData: favoriteData
+        };
+        
+        console.log('background.js: 応答データ:', response);
+        sendResponse(response);
       } catch (error) {
-        console.error('お気に入りステータスチェックエラー:', error);
+        console.error('background.js: お気に入りステータスチェックエラー:', error);
         sendResponse({
           success: false,
           error: error.message

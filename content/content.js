@@ -8,12 +8,25 @@ class FavoriteIndicator {
     }
 
     async init() {
+        console.log('FavoriteIndicator初期化開始:', this.currentUrl);
+        
         // ページが完全に読み込まれるまで待機
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.checkAndShowIndicator());
+            console.log('ページ読み込み中 - DOMContentLoadedを待機');
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('DOMContentLoaded - インジケーターチェック開始');
+                this.checkAndShowIndicator();
+            });
         } else {
+            console.log('ページ読み込み完了 - 即座にインジケーターチェック開始');
             this.checkAndShowIndicator();
         }
+
+        // 少し遅延してもう一度チェック（拡張機能の初期化待ち）
+        setTimeout(() => {
+            console.log('遅延チェック実行');
+            this.checkAndShowIndicator();
+        }, 1000);
 
         // URL変更を監視（SPAサイト対応）
         this.observeUrlChanges();
@@ -32,35 +45,47 @@ class FavoriteIndicator {
     // お気に入りに登録されているかチェック
     async checkFavoriteStatus() {
         try {
+            console.log('お気に入りステータスチェック開始:', this.currentUrl);
+            
             const response = await browser.runtime.sendMessage({
                 action: 'checkFavoriteStatus',
                 url: this.currentUrl
             });
 
+            console.log('お気に入りステータス応答:', response);
+
             if (response && response.success) {
-                return {
+                const status = {
                     isFavorite: response.isFavorite,
                     exactMatch: response.exactMatch,
                     cleanMatch: response.cleanMatch,
                     favoriteData: response.favoriteData
                 };
+                console.log('お気に入りステータス結果:', status);
+                return status;
             }
         } catch (error) {
-            console.log('お気に入りステータスチェックエラー:', error);
+            console.error('お気に入りステータスチェックエラー:', error);
         }
 
+        console.log('お気に入りステータス: 未登録');
         return { isFavorite: false, exactMatch: false, cleanMatch: false, favoriteData: null };
     }
 
     // インジケーターを表示
     async checkAndShowIndicator() {
+        console.log('checkAndShowIndicator開始');
         const status = await this.checkFavoriteStatus();
 
+        console.log('お気に入りステータス判定:', status.isFavorite);
+
         if (status.isFavorite) {
+            console.log('お気に入り登録済み - インジケーター表示');
             this.showIndicator(status);
             this.updateFavicon(true);
             this.updatePageTitle(true);
         } else {
+            console.log('お気に入り未登録 - インジケーター非表示');
             this.hideIndicator();
             this.updateFavicon(false);
             this.updatePageTitle(false);
@@ -150,6 +175,8 @@ class FavoriteIndicator {
 
     // お気に入りインジケーターを表示
     showIndicator(status) {
+        console.log('showIndicator開始:', status);
+        
         // 既存のインジケーターを削除
         this.hideIndicator();
 
@@ -157,46 +184,71 @@ class FavoriteIndicator {
         const favoriteData = status.favoriteData;
         const hasCategory = favoriteData && favoriteData.category;
         const hasTags = favoriteData && favoriteData.tags && favoriteData.tags.length > 0;
+        
+        console.log('お気に入りデータ:', {
+            favoriteData: favoriteData,
+            hasCategory: hasCategory,
+            hasTags: hasTags
+        });
 
         // インジケーター要素を作成
         this.indicator = document.createElement('div');
         this.indicator.id = 'favorite-indicator';
 
-        let content = `
-            <div class="favorite-header">
-                <div class="favorite-icon">⭐</div>
-                <div class="favorite-main-text">お気に入り登録済み</div>
-            </div>
-        `;
+        // ヘッダー部分を作成
+        const header = document.createElement('div');
+        header.className = 'favorite-header';
+        
+        const icon = document.createElement('div');
+        icon.className = 'favorite-icon';
+        icon.textContent = '⭐';
+        
+        const mainText = document.createElement('div');
+        mainText.className = 'favorite-main-text';
+        mainText.textContent = 'お気に入り登録済み';
+        
+        header.appendChild(icon);
+        header.appendChild(mainText);
+        this.indicator.appendChild(header);
 
         // 詳細情報を追加
         if (favoriteData) {
-            content += '<div class="favorite-details">';
-
+            const details = document.createElement('div');
+            details.className = 'favorite-details';
+            
             if (hasCategory) {
-                content += `<div class="favorite-category">📁 ${favoriteData.category}</div>`;
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'favorite-category';
+                categoryDiv.textContent = `📁 ${favoriteData.category}`;
+                details.appendChild(categoryDiv);
             }
-
+            
             if (hasTags) {
+                const tagsDiv = document.createElement('div');
+                tagsDiv.className = 'favorite-tags';
                 const tagsText = favoriteData.tags.slice(0, 3).join(', ');
                 const moreTagsText = favoriteData.tags.length > 3 ? ` +${favoriteData.tags.length - 3}` : '';
-                content += `<div class="favorite-tags">🏷️ ${tagsText}${moreTagsText}</div>`;
+                tagsDiv.textContent = `🏷️ ${tagsText}${moreTagsText}`;
+                details.appendChild(tagsDiv);
             }
-
-            content += '</div>';
+            
+            this.indicator.appendChild(details);
         }
 
         if (!status.exactMatch) {
-            content += '<div class="favorite-note">（類似URL）</div>';
+            const note = document.createElement('div');
+            note.className = 'favorite-note';
+            note.textContent = '（類似URL）';
+            this.indicator.appendChild(note);
         }
-
-        this.indicator.innerHTML = content;
 
         // スタイルを適用
         this.applyIndicatorStyles();
 
         // ページに追加
+        console.log('インジケーターをページに追加:', this.indicator);
         document.body.appendChild(this.indicator);
+        console.log('インジケーター追加完了 - DOM要素:', document.getElementById('favorite-indicator'));
 
         // 5秒後に透明度を下げる
         setTimeout(() => {
@@ -349,8 +401,11 @@ class FavoriteIndicator {
     // インジケーターを非表示
     hideIndicator() {
         if (this.indicator) {
+            console.log('既存のインジケーターを削除');
             this.indicator.remove();
             this.indicator = null;
+        } else {
+            console.log('削除するインジケーターが存在しません');
         }
     }
 
@@ -417,41 +472,164 @@ function showImageFavoriteForm(imageUrl, pageUrl, pageTitle) {
     // フォーム要素を作成
     const formContainer = document.createElement('div');
     formContainer.id = 'image-favorite-form';
-    formContainer.innerHTML = `
-        <div class="form-overlay">
-            <div class="form-content">
-                <div class="form-header">
-                    <h3>画像付きお気に入り登録</h3>
-                    <button class="close-btn" onclick="this.closest('#image-favorite-form').remove()">×</button>
-                </div>
-                <div class="form-body">
-                    <div class="image-preview">
-                        <img src="${imageUrl}" alt="選択された画像" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div class="image-error" style="display: none;">画像を読み込めませんでした</div>
-                    </div>
-                    <div class="form-fields">
-                        <input type="text" id="image-form-title" placeholder="タイトル" value="${pageTitle || ''}" required>
-                        <input type="url" id="image-form-url" placeholder="URL" value="${pageUrl || ''}" required>
-                        <input type="url" id="image-form-image-url" placeholder="画像URL" value="${imageUrl || ''}" required>
-                        <select id="image-form-category">
-                            <option value="">カテゴリーを選択</option>
-                        </select>
-                        <input type="text" id="image-form-new-category" placeholder="新しいカテゴリー">
-                        <div class="image-tags-section">
-                            <label for="image-form-tags">タグ:</label>
-                            <div id="image-form-existing-tags" class="existing-tags"></div>
-                            <input type="text" id="image-form-tags" placeholder="新しいタグを入力（カンマ区切り）">
-                            <div id="image-form-selected-tags" class="selected-tags"></div>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button id="image-form-save" class="btn-primary">保存</button>
-                        <button id="image-form-cancel" class="btn-secondary">キャンセル</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    
+    // オーバーレイを作成
+    const overlay = document.createElement('div');
+    overlay.className = 'form-overlay';
+    
+    // コンテンツを作成
+    const content = document.createElement('div');
+    content.className = 'form-content';
+    
+    // ヘッダーを作成
+    const header = document.createElement('div');
+    header.className = 'form-header';
+    
+    const title = document.createElement('h3');
+    title.textContent = '画像付きお気に入り登録';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-btn';
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', () => {
+        imageFormSelectedTags.clear();
+        formContainer.remove();
+    });
+    
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    
+    // ボディを作成
+    const body = document.createElement('div');
+    body.className = 'form-body';
+    
+    // 画像プレビューを作成
+    const imagePreview = document.createElement('div');
+    imagePreview.className = 'image-preview';
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = '選択された画像';
+    img.addEventListener('error', () => {
+        img.style.display = 'none';
+        imageError.style.display = 'block';
+    });
+    
+    const imageError = document.createElement('div');
+    imageError.className = 'image-error';
+    imageError.style.display = 'none';
+    imageError.textContent = '画像を読み込めませんでした';
+    
+    imagePreview.appendChild(img);
+    imagePreview.appendChild(imageError);
+    
+    // フォームフィールドを作成
+    const formFields = document.createElement('div');
+    formFields.className = 'form-fields';
+    
+    // タイトル入力
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.id = 'image-form-title';
+    titleInput.placeholder = 'タイトル';
+    titleInput.value = pageTitle || '';
+    titleInput.required = true;
+    
+    // URL入力
+    const urlInput = document.createElement('input');
+    urlInput.type = 'url';
+    urlInput.id = 'image-form-url';
+    urlInput.placeholder = 'URL';
+    urlInput.value = pageUrl || '';
+    urlInput.required = true;
+    
+    // 画像URL入力
+    const imageUrlInput = document.createElement('input');
+    imageUrlInput.type = 'url';
+    imageUrlInput.id = 'image-form-image-url';
+    imageUrlInput.placeholder = '画像URL';
+    imageUrlInput.value = imageUrl || '';
+    imageUrlInput.required = true;
+    
+    // カテゴリー選択
+    const categorySelect = document.createElement('select');
+    categorySelect.id = 'image-form-category';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'カテゴリーを選択';
+    categorySelect.appendChild(defaultOption);
+    
+    // 新しいカテゴリー入力
+    const newCategoryInput = document.createElement('input');
+    newCategoryInput.type = 'text';
+    newCategoryInput.id = 'image-form-new-category';
+    newCategoryInput.placeholder = '新しいカテゴリー';
+    
+    // タグセクションを作成
+    const tagsSection = document.createElement('div');
+    tagsSection.className = 'image-tags-section';
+    
+    const tagsLabel = document.createElement('label');
+    tagsLabel.setAttribute('for', 'image-form-tags');
+    tagsLabel.textContent = 'タグ:';
+    
+    const existingTags = document.createElement('div');
+    existingTags.id = 'image-form-existing-tags';
+    existingTags.className = 'existing-tags';
+    
+    const tagsInput = document.createElement('input');
+    tagsInput.type = 'text';
+    tagsInput.id = 'image-form-tags';
+    tagsInput.placeholder = '新しいタグを入力（カンマ区切り）';
+    
+    const selectedTags = document.createElement('div');
+    selectedTags.id = 'image-form-selected-tags';
+    selectedTags.className = 'selected-tags';
+    
+    tagsSection.appendChild(tagsLabel);
+    tagsSection.appendChild(existingTags);
+    tagsSection.appendChild(tagsInput);
+    tagsSection.appendChild(selectedTags);
+    
+    // フォームフィールドを組み立て
+    formFields.appendChild(titleInput);
+    formFields.appendChild(urlInput);
+    formFields.appendChild(imageUrlInput);
+    formFields.appendChild(categorySelect);
+    formFields.appendChild(newCategoryInput);
+    formFields.appendChild(tagsSection);
+    
+    // アクションボタンを作成
+    const formActions = document.createElement('div');
+    formActions.className = 'form-actions';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.id = 'image-form-save';
+    saveBtn.className = 'btn-primary';
+    saveBtn.textContent = '保存';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.id = 'image-form-cancel';
+    cancelBtn.className = 'btn-secondary';
+    cancelBtn.textContent = 'キャンセル';
+    
+    formActions.appendChild(saveBtn);
+    formActions.appendChild(cancelBtn);
+    
+    // ボディを組み立て
+    body.appendChild(imagePreview);
+    body.appendChild(formFields);
+    body.appendChild(formActions);
+    
+    // コンテンツを組み立て
+    content.appendChild(header);
+    content.appendChild(body);
+    
+    // オーバーレイを組み立て
+    overlay.appendChild(content);
+    
+    // フォームコンテナを組み立て
+    formContainer.appendChild(overlay);
 
     // スタイルを適用
     applyImageFormStyles(formContainer);
@@ -703,7 +881,17 @@ async function loadCategoriesForImageForm() {
             const categorySelect = document.getElementById('image-form-category');
 
             if (categorySelect) {
-                categorySelect.innerHTML = '<option value="">カテゴリーを選択</option>';
+                // 既存のオプションをクリア
+                while (categorySelect.firstChild) {
+                    categorySelect.removeChild(categorySelect.firstChild);
+                }
+                
+                // デフォルトオプションを追加
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'カテゴリーを選択';
+                categorySelect.appendChild(defaultOption);
+                
                 categories.forEach(category => {
                     const option = document.createElement('option');
                     option.value = category;
@@ -726,7 +914,10 @@ async function loadTagsForImageForm() {
             const container = document.getElementById('image-form-existing-tags');
             
             if (container) {
-                container.innerHTML = '';
+                // 既存の内容をクリア
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
                 
                 if (allTags.length === 0) {
                     const span = document.createElement('span');
@@ -799,7 +990,10 @@ function updateImageFormSelectedTags() {
     const container = document.getElementById('image-form-selected-tags');
     if (!container) return;
     
-    container.innerHTML = '';
+    // 既存の内容をクリア
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
 
     imageFormSelectedTags.forEach(tag => {
         const tagElement = document.createElement('span');
@@ -1072,7 +1266,18 @@ function showSuccessMessage(message) {
 
 // ページ読み込み時に初期化
 if (typeof browser !== 'undefined') {
-    new FavoriteIndicator();
+    const favoriteIndicator = new FavoriteIndicator();
+    
+    // デバッグ用: グローバルに公開
+    window.favoriteIndicator = favoriteIndicator;
+    
+    // デバッグ用: 手動チェック機能
+    window.checkFavoriteStatus = () => {
+        console.log('手動お気に入りステータスチェック実行');
+        favoriteIndicator.checkAndShowIndicator();
+    };
+    
+    console.log('FavoriteIndicator初期化完了 - デバッグ用関数: window.checkFavoriteStatus()');
 } else {
     console.log('Browser API not available');
 }
