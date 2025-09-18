@@ -5,6 +5,49 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('background.js: メッセージ受信:', message);
   console.log('background.js: sendResponse関数:', typeof sendResponse);
   
+  if (message.action === 'checkFavoriteStatus') {
+    // 特定のURLがお気に入りに登録されているかチェック
+    (async () => {
+      try {
+        const result = await browser.storage.local.get(['favorites']);
+        const favorites = result.favorites || [];
+        const targetUrl = message.url;
+        
+        // 完全一致チェック
+        const exactMatch = favorites.find(fav => fav.url === targetUrl);
+        
+        // クリーンURL一致チェック（アンカーやクエリパラメータを除去）
+        const getCleanUrl = (url) => {
+          try {
+            const urlObj = new URL(url);
+            return urlObj.origin + urlObj.pathname;
+          } catch (e) {
+            return url.split('#')[0].split('?')[0];
+          }
+        };
+        
+        const cleanTargetUrl = getCleanUrl(targetUrl);
+        const cleanMatch = favorites.find(fav => getCleanUrl(fav.url) === cleanTargetUrl);
+        
+        sendResponse({
+          success: true,
+          isFavorite: !!(exactMatch || cleanMatch),
+          exactMatch: !!exactMatch,
+          cleanMatch: !!cleanMatch,
+          favoriteData: exactMatch || cleanMatch || null
+        });
+      } catch (error) {
+        console.error('お気に入りステータスチェックエラー:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      }
+    })();
+    
+    return true; // 非同期レスポンスを示す
+  }
+
   if (message.action === 'getFavoritesData') {
     // 非同期処理を実行
     (async () => {

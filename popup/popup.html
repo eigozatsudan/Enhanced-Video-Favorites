@@ -82,14 +82,28 @@
     </div>
     
     <div id="settings-tab" class="tab-content">
+      <h3>表示設定</h3>
+      <div class="settings-section">
+        <label class="setting-item">
+          <input type="checkbox" id="show-indicator" checked>
+          <span>お気に入り登録済みページでインジケーターを表示</span>
+        </label>
+        <label class="setting-item">
+          <input type="checkbox" id="show-favicon" checked>
+          <span>ファビコンにお気に入りマークを表示</span>
+        </label>
+        <label class="setting-item">
+          <input type="checkbox" id="show-title" checked>
+          <span>ページタイトルにお気に入りマークを表示</span>
+        </label>
+      </div>
+
       <h3>データ管理</h3>
       <div class="settings-section">
         <button id="export-btn" class="btn">データをエクスポート</button>
         <button id="import-btn" class="btn">データをインポート</button>
         <input type="file" id="import-file" accept=".json" style="display: none;">
       </div>
-      
-
       
       <div class="settings-section">
         <button id="backup-btn" class="btn">手動バックアップ</button>

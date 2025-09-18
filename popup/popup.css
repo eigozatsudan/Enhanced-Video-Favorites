@@ -397,3 +397,23 @@ h2 {
 .selected-tag .remove-tag:hover {
   color: #ffcccc;
 }
+
+/* 設定項目のスタイル */
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.setting-item input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.setting-item span {
+  flex: 1;
+  line-height: 1.4;
+}
