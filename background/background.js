@@ -1,6 +1,25 @@
 // バックグラウンドスクリプト（Firefox用）
 console.log('background.js が読み込まれました');
 
+// スクリプト読み込み時にもコンテキストメニューを作成
+setTimeout(() => {
+  console.log('遅延コンテキストメニュー作成を実行');
+  createContextMenus();
+}, 1000);
+
+// デバッグ用: コンテキストメニューの状態を確認する関数
+function checkContextMenus() {
+  browser.contextMenus.removeAll(() => {
+    console.log('既存のコンテキストメニューをクリアしました');
+    createContextMenus();
+  });
+}
+
+// デバッグ用: グローバルに公開
+if (typeof window !== 'undefined') {
+  window.checkContextMenus = checkContextMenus;
+}
+
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('background.js: メッセージ受信:', message);
   console.log('background.js: sendResponse関数:', typeof sendResponse);
@@ -199,21 +218,55 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// インストール時の初期化
-browser.runtime.onInstalled.addListener(() => {
-  console.log('Enhanced Video Favorites 拡張機能がインストールされました');
+// コンテキストメニューを作成する関数
+function createContextMenus() {
+  console.log('コンテキストメニューを作成中...');
   
-  // コンテキストメニューを作成
-  browser.contextMenus.create({
-    id: 'add-image-to-favorites',
-    title: 'この画像を使ってお気に入り登録',
-    contexts: ['image']
+  // 既存のコンテキストメニューをクリア
+  browser.contextMenus.removeAll(() => {
+    // 画像用コンテキストメニューを作成
+    browser.contextMenus.create({
+      id: 'add-image-to-favorites',
+      title: 'この画像を使ってお気に入り登録',
+      contexts: ['image']
+    }, () => {
+      if (browser.runtime.lastError) {
+        console.error('コンテキストメニュー作成エラー:', browser.runtime.lastError);
+      } else {
+        console.log('コンテキストメニューが正常に作成されました');
+      }
+    });
   });
+}
+
+// インストール時の初期化
+browser.runtime.onInstalled.addListener((details) => {
+  console.log('Enhanced Video Favorites 拡張機能がインストールされました:', details.reason);
+  createContextMenus();
 });
+
+// 起動時の初期化（既にインストール済みの場合）
+browser.runtime.onStartup.addListener(() => {
+  console.log('Enhanced Video Favorites 拡張機能が起動しました');
+  createContextMenus();
+});
+
+// 拡張機能が有効化された時の初期化
+if (browser.management && browser.management.onEnabled) {
+  browser.management.onEnabled.addListener((info) => {
+    if (info.id === browser.runtime.id) {
+      console.log('Enhanced Video Favorites 拡張機能が有効化されました');
+      createContextMenus();
+    }
+  });
+}
 
 // コンテキストメニューのクリック処理
 browser.contextMenus.onClicked.addListener((info, tab) => {
+  console.log('コンテキストメニューがクリックされました:', info.menuItemId);
+  
   if (info.menuItemId === 'add-image-to-favorites') {
+    console.log('画像お気に入り登録メニューがクリックされました');
     // 画像URLとページ情報を取得してお気に入り追加フォームを開く
     handleImageContextMenu(info, tab);
   }
@@ -222,25 +275,41 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 // 画像コンテキストメニューの処理
 async function handleImageContextMenu(info, tab) {
   try {
-    console.log('画像コンテキストメニューがクリックされました:', info);
+    console.log('画像コンテキストメニューがクリックされました:', {
+      menuItemId: info.menuItemId,
+      srcUrl: info.srcUrl,
+      pageUrl: tab.url,
+      tabId: tab.id
+    });
+    
+    // 画像URLの検証
+    if (!info.srcUrl) {
+      console.error('画像URLが取得できませんでした');
+      return;
+    }
     
     // アンカータグを削除したクリーンなURLを作成
     const cleanUrl = getCleanUrl(tab.url);
+    console.log('クリーンURL:', cleanUrl);
     
     // 画像情報をコンテンツスクリプトに送信
-    await browser.tabs.sendMessage(tab.id, {
+    console.log('コンテンツスクリプトにメッセージを送信中...');
+    const response = await browser.tabs.sendMessage(tab.id, {
       action: 'showImageFavoriteForm',
       imageUrl: info.srcUrl,
       pageUrl: cleanUrl,
       pageTitle: tab.title
     });
     
+    console.log('コンテンツスクリプトからの応答:', response);
+    
   } catch (error) {
     console.error('画像コンテキストメニュー処理エラー:', error);
+    console.log('フォールバック処理を実行中...');
     
     // コンテンツスクリプトが利用できない場合は、ポップアップを開く
     try {
-      // ストレージに一時的に画像情報を保存
+      console.log('一時データをストレージに保存中...');
       await browser.storage.local.set({
         tempImageData: {
           imageUrl: info.srcUrl,
@@ -250,10 +319,23 @@ async function handleImageContextMenu(info, tab) {
         }
       });
       
-      // ポップアップを開く（ブラウザアクションをクリックしたのと同じ効果）
-      browser.browserAction.openPopup();
+      console.log('ポップアップを開こうとしています...');
+      // 新しいタブでポップアップページを開く（Firefox対応）
+      await browser.tabs.create({
+        url: browser.runtime.getURL('popup/popup.html'),
+        active: true
+      });
+      
     } catch (popupError) {
-      console.error('ポップアップ開けませんでした:', popupError);
+      console.error('フォールバック処理エラー:', popupError);
+      // 最後の手段として通知を表示
+      if (browser.notifications) {
+        browser.notifications.create({
+          type: 'basic',
+          title: 'お気に入り登録',
+          message: '画像のお気に入り登録フォームを開けませんでした。拡張機能のポップアップから手動で登録してください。'
+        });
+      }
     }
   }
 }
