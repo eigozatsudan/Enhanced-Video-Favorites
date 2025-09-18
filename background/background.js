@@ -179,4 +179,68 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // インストール時の初期化
 browser.runtime.onInstalled.addListener(() => {
   console.log('Enhanced Video Favorites 拡張機能がインストールされました');
+  
+  // コンテキストメニューを作成
+  browser.contextMenus.create({
+    id: 'add-image-to-favorites',
+    title: 'この画像を使ってお気に入り登録',
+    contexts: ['image']
+  });
 });
+
+// コンテキストメニューのクリック処理
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'add-image-to-favorites') {
+    // 画像URLとページ情報を取得してお気に入り追加フォームを開く
+    handleImageContextMenu(info, tab);
+  }
+});
+
+// 画像コンテキストメニューの処理
+async function handleImageContextMenu(info, tab) {
+  try {
+    console.log('画像コンテキストメニューがクリックされました:', info);
+    
+    // アンカータグを削除したクリーンなURLを作成
+    const cleanUrl = getCleanUrl(tab.url);
+    
+    // 画像情報をコンテンツスクリプトに送信
+    await browser.tabs.sendMessage(tab.id, {
+      action: 'showImageFavoriteForm',
+      imageUrl: info.srcUrl,
+      pageUrl: cleanUrl,
+      pageTitle: tab.title
+    });
+    
+  } catch (error) {
+    console.error('画像コンテキストメニュー処理エラー:', error);
+    
+    // コンテンツスクリプトが利用できない場合は、ポップアップを開く
+    try {
+      // ストレージに一時的に画像情報を保存
+      await browser.storage.local.set({
+        tempImageData: {
+          imageUrl: info.srcUrl,
+          pageUrl: getCleanUrl(tab.url),
+          pageTitle: tab.title,
+          timestamp: Date.now()
+        }
+      });
+      
+      // ポップアップを開く（ブラウザアクションをクリックしたのと同じ効果）
+      browser.browserAction.openPopup();
+    } catch (popupError) {
+      console.error('ポップアップ開けませんでした:', popupError);
+    }
+  }
+}
+
+// URLからアンカーやクエリパラメータを除去
+function getCleanUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.origin + urlObj.pathname;
+  } catch (e) {
+    return url.split('#')[0].split('?')[0];
+  }
+}

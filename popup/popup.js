@@ -16,7 +16,53 @@ class FavoritesManager {
         await this.loadCategories();
         await this.loadTags();
         await this.loadFavorites();
+
+        // 一時的な画像データがあるかチェック
+        await this.checkTempImageData();
+
         console.log('FavoritesManager初期化完了');
+    }
+
+    // 一時的な画像データをチェック
+    async checkTempImageData() {
+        try {
+            const result = await browser.storage.local.get(['tempImageData']);
+            const tempData = result.tempImageData;
+
+            if (tempData && tempData.timestamp) {
+                // 5分以内のデータのみ有効
+                const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+                if (tempData.timestamp > fiveMinutesAgo) {
+                    // 画像データでフォームを自動入力
+                    this.fillFormWithImageData(tempData);
+                }
+
+                // 一時データを削除
+                await browser.storage.local.remove(['tempImageData']);
+            }
+        } catch (error) {
+            console.error('一時画像データチェックエラー:', error);
+        }
+    }
+
+    // 画像データでフォームを自動入力
+    fillFormWithImageData(imageData) {
+        // 追加フォームを表示
+        this.showAddForm();
+
+        // フォームに値を設定
+        document.getElementById('title').value = imageData.pageTitle || '';
+        document.getElementById('url').value = imageData.pageUrl || '';
+        document.getElementById('image-url').value = imageData.imageUrl || '';
+
+        // タイトル入力欄にフォーカス
+        setTimeout(() => {
+            const titleInput = document.getElementById('title');
+            if (titleInput) {
+                titleInput.focus();
+                titleInput.select();
+            }
+        }, 100);
     }
 
     // データ整合性チェックと復旧
@@ -197,6 +243,21 @@ class FavoritesManager {
 
             tagsInput.addEventListener('blur', () => {
                 this.addTagFromInput();
+            });
+        }
+
+        // 編集用タグ入力のイベントリスナー
+        const editTagsInput = document.getElementById('edit-tags');
+        if (editTagsInput) {
+            editTagsInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    this.addEditTagFromInput();
+                }
+            });
+
+            editTagsInput.addEventListener('blur', () => {
+                this.addEditTagFromInput();
             });
         }
     }
@@ -400,33 +461,46 @@ class FavoritesManager {
         const result = await browser.storage.local.get(['categories']);
         const categories = result.categories || [];
 
+        // インスタンス変数に保存
+        this.allCategories = categories;
+
         const categorySelect = document.getElementById('category');
         const filterSelect = document.getElementById('filter-category');
 
         // カテゴリー選択肢をクリア
-        categorySelect.textContent = '';
-        const defaultOption1 = document.createElement('option');
-        defaultOption1.value = '';
-        defaultOption1.textContent = 'カテゴリーを選択';
-        categorySelect.appendChild(defaultOption1);
+        if (categorySelect) {
+            categorySelect.textContent = '';
+            const defaultOption1 = document.createElement('option');
+            defaultOption1.value = '';
+            defaultOption1.textContent = 'カテゴリーを選択';
+            categorySelect.appendChild(defaultOption1);
 
-        filterSelect.textContent = '';
-        const defaultOption2 = document.createElement('option');
-        defaultOption2.value = '';
-        defaultOption2.textContent = '全カテゴリー';
-        filterSelect.appendChild(defaultOption2);
+            categories.forEach(category => {
+                const option1 = new Option(category, category);
+                categorySelect.appendChild(option1);
+            });
+        }
 
-        categories.forEach(category => {
-            const option1 = new Option(category, category);
-            const option2 = new Option(category, category);
-            categorySelect.appendChild(option1);
-            filterSelect.appendChild(option2);
-        });
+        if (filterSelect) {
+            filterSelect.textContent = '';
+            const defaultOption2 = document.createElement('option');
+            defaultOption2.value = '';
+            defaultOption2.textContent = '全カテゴリー';
+            filterSelect.appendChild(defaultOption2);
+
+            categories.forEach(category => {
+                const option2 = new Option(category, category);
+                filterSelect.appendChild(option2);
+            });
+        }
     }
 
     async loadTags() {
         const result = await browser.storage.local.get(['allTags']);
         const allTags = result.allTags || [];
+
+        // インスタンス変数に保存
+        this.allTags = allTags;
 
         const existingTagsContainer = document.getElementById('existing-tags');
         if (!existingTagsContainer) return;
@@ -931,31 +1005,51 @@ class FavoritesManager {
     // 編集用タグを読み込み
     async loadEditTags() {
         const container = document.getElementById('edit-existing-tags');
+        if (!container) {
+            console.warn('edit-existing-tags要素が見つかりません');
+            return;
+        }
+
         container.textContent = '';
 
         // allTagsが未定義の場合は読み込み
         if (!this.allTags) {
             console.log('allTagsが未定義のため、データを読み込みます');
-            await this.loadTags();
+            const result = await browser.storage.local.get(['allTags']);
+            this.allTags = result.allTags || [];
         }
 
-        if (this.allTags && Array.isArray(this.allTags)) {
+        console.log('編集用タグ読み込み:', this.allTags);
+
+        if (this.allTags && Array.isArray(this.allTags) && this.allTags.length > 0) {
             this.allTags.forEach(tag => {
                 const tagElement = document.createElement('span');
                 tagElement.className = 'existing-tag';
                 tagElement.textContent = tag;
+
+                // 既に選択されているタグの場合はselectedクラスを追加
+                if (this.editSelectedTags.has(tag)) {
+                    tagElement.classList.add('selected');
+                }
+
                 tagElement.addEventListener('click', () => {
                     if (this.editSelectedTags.has(tag)) {
                         this.editSelectedTags.delete(tag);
+                        tagElement.classList.remove('selected');
                     } else {
                         this.editSelectedTags.add(tag);
+                        tagElement.classList.add('selected');
                     }
                     this.updateEditSelectedTags();
                 });
                 container.appendChild(tagElement);
             });
         } else {
-            console.warn('allTagsが配列ではありません:', this.allTags);
+            const span = document.createElement('span');
+            span.style.color = '#999';
+            span.style.fontSize = '11px';
+            span.textContent = 'まだタグがありません';
+            container.appendChild(span);
         }
     }
 
@@ -1168,7 +1262,46 @@ class FavoritesManager {
         }, 3000);
     }
 
+    // 編集用タグ入力から追加
+    addEditTagFromInput() {
+        const editTagsInput = document.getElementById('edit-tags');
+        if (!editTagsInput) return;
 
+        const inputValue = editTagsInput.value.trim();
+        if (!inputValue) return;
+
+        const newTags = inputValue.split(',').map(tag => tag.trim()).filter(tag => tag);
+        newTags.forEach(tag => {
+            if (tag) {
+                this.editSelectedTags.add(tag);
+            }
+        });
+
+        editTagsInput.value = '';
+        this.updateEditSelectedTags();
+    }
+
+    // 全タグリストを更新
+    async updateAllTags() {
+        try {
+            const result = await browser.storage.local.get(['favorites']);
+            const favorites = result.favorites || [];
+
+            // 全てのお気に入りからタグを収集
+            const allTags = new Set();
+            favorites.forEach(favorite => {
+                if (favorite.tags && Array.isArray(favorite.tags)) {
+                    favorite.tags.forEach(tag => allTags.add(tag));
+                }
+            });
+
+            // ストレージに保存
+            await browser.storage.local.set({ allTags: Array.from(allTags) });
+            this.allTags = Array.from(allTags);
+        } catch (error) {
+            console.error('全タグリスト更新エラー:', error);
+        }
+    }
 }
 
 // グローバルマネージャーインスタンス

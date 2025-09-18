@@ -397,6 +397,679 @@ class FavoriteIndicator {
     }
 }
 
+// メッセージリスナーを追加
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'showImageFavoriteForm') {
+        showImageFavoriteForm(message.imageUrl, message.pageUrl, message.pageTitle);
+        sendResponse({ success: true });
+    }
+    return false;
+});
+
+// 画像お気に入り登録フォームを表示
+function showImageFavoriteForm(imageUrl, pageUrl, pageTitle) {
+    // 既存のフォームがあれば削除
+    const existingForm = document.getElementById('image-favorite-form');
+    if (existingForm) {
+        existingForm.remove();
+    }
+
+    // フォーム要素を作成
+    const formContainer = document.createElement('div');
+    formContainer.id = 'image-favorite-form';
+    formContainer.innerHTML = `
+        <div class="form-overlay">
+            <div class="form-content">
+                <div class="form-header">
+                    <h3>画像付きお気に入り登録</h3>
+                    <button class="close-btn" onclick="this.closest('#image-favorite-form').remove()">×</button>
+                </div>
+                <div class="form-body">
+                    <div class="image-preview">
+                        <img src="${imageUrl}" alt="選択された画像" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div class="image-error" style="display: none;">画像を読み込めませんでした</div>
+                    </div>
+                    <div class="form-fields">
+                        <input type="text" id="image-form-title" placeholder="タイトル" value="${pageTitle || ''}" required>
+                        <input type="url" id="image-form-url" placeholder="URL" value="${pageUrl || ''}" required>
+                        <input type="url" id="image-form-image-url" placeholder="画像URL" value="${imageUrl || ''}" required>
+                        <select id="image-form-category">
+                            <option value="">カテゴリーを選択</option>
+                        </select>
+                        <input type="text" id="image-form-new-category" placeholder="新しいカテゴリー">
+                        <div class="image-tags-section">
+                            <label for="image-form-tags">タグ:</label>
+                            <div id="image-form-existing-tags" class="existing-tags"></div>
+                            <input type="text" id="image-form-tags" placeholder="新しいタグを入力（カンマ区切り）">
+                            <div id="image-form-selected-tags" class="selected-tags"></div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button id="image-form-save" class="btn-primary">保存</button>
+                        <button id="image-form-cancel" class="btn-secondary">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // スタイルを適用
+    applyImageFormStyles(formContainer);
+
+    // ページに追加
+    document.body.appendChild(formContainer);
+
+    // カテゴリーとタグを読み込み
+    loadCategoriesForImageForm();
+    loadTagsForImageForm();
+
+    // タグ選択状態をリセット
+    imageFormSelectedTags.clear();
+
+    // イベントリスナーを設定
+    setupImageFormEventListeners(formContainer);
+
+    // タイトル入力欄にフォーカス
+    setTimeout(() => {
+        const titleInput = formContainer.querySelector('#image-form-title');
+        if (titleInput) {
+            titleInput.focus();
+            titleInput.select();
+        }
+    }, 100);
+}
+
+// 画像フォームのスタイルを適用
+function applyImageFormStyles(formContainer) {
+    Object.assign(formContainer.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        zIndex: '10001',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    });
+
+    const overlay = formContainer.querySelector('.form-overlay');
+    Object.assign(overlay.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backdropFilter: 'blur(5px)'
+    });
+
+    const content = formContainer.querySelector('.form-content');
+    Object.assign(content.style, {
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+        maxWidth: '500px',
+        width: '90%',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        animation: 'slideIn 0.3s ease-out'
+    });
+
+    const header = formContainer.querySelector('.form-header');
+    Object.assign(header.style, {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px 20px',
+        borderBottom: '1px solid #eee',
+        backgroundColor: '#f8f9fa'
+    });
+
+    const title = formContainer.querySelector('h3');
+    Object.assign(title.style, {
+        margin: '0',
+        fontSize: '18px',
+        fontWeight: '600',
+        color: '#333'
+    });
+
+    const closeBtn = formContainer.querySelector('.close-btn');
+    Object.assign(closeBtn.style, {
+        background: 'none',
+        border: 'none',
+        fontSize: '24px',
+        cursor: 'pointer',
+        color: '#666',
+        padding: '0',
+        width: '30px',
+        height: '30px',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    });
+
+    const body = formContainer.querySelector('.form-body');
+    Object.assign(body.style, {
+        padding: '20px',
+        maxHeight: 'calc(80vh - 120px)',
+        overflowY: 'auto'
+    });
+
+    const imagePreview = formContainer.querySelector('.image-preview');
+    Object.assign(imagePreview.style, {
+        textAlign: 'center',
+        marginBottom: '20px',
+        padding: '10px',
+        border: '2px dashed #ddd',
+        borderRadius: '8px',
+        backgroundColor: '#f9f9f9'
+    });
+
+    const img = formContainer.querySelector('.image-preview img');
+    Object.assign(img.style, {
+        maxWidth: '100%',
+        maxHeight: '200px',
+        borderRadius: '6px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+    });
+
+    const fields = formContainer.querySelector('.form-fields');
+    Object.assign(fields.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
+    });
+
+    // 入力フィールドのスタイル
+    const inputs = formContainer.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        Object.assign(input.style, {
+            padding: '10px 12px',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            transition: 'border-color 0.2s'
+        });
+    });
+
+    // タグセクションのスタイル
+    const tagsSection = formContainer.querySelector('.image-tags-section');
+    if (tagsSection) {
+        Object.assign(tagsSection.style, {
+            marginBottom: '12px'
+        });
+
+        const label = tagsSection.querySelector('label');
+        if (label) {
+            Object.assign(label.style, {
+                display: 'block',
+                fontSize: '12px',
+                color: '#666',
+                marginBottom: '4px'
+            });
+        }
+
+        const existingTags = tagsSection.querySelector('.existing-tags');
+        if (existingTags) {
+            Object.assign(existingTags.style, {
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '4px',
+                marginBottom: '8px',
+                maxHeight: '80px',
+                overflowY: 'auto',
+                padding: '4px',
+                border: '1px solid #eee',
+                borderRadius: '4px',
+                backgroundColor: '#f9f9f9',
+                minHeight: '32px'
+            });
+        }
+
+        const selectedTags = tagsSection.querySelector('.selected-tags');
+        if (selectedTags) {
+            Object.assign(selectedTags.style, {
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '4px',
+                marginTop: '4px',
+                minHeight: '20px'
+            });
+        }
+    }
+
+    const actions = formContainer.querySelector('.form-actions');
+    Object.assign(actions.style, {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '20px'
+    });
+
+    const primaryBtn = formContainer.querySelector('.btn-primary');
+    Object.assign(primaryBtn.style, {
+        flex: '1',
+        padding: '12px 20px',
+        backgroundColor: '#007bff',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontWeight: '500',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s'
+    });
+
+    const secondaryBtn = formContainer.querySelector('.btn-secondary');
+    Object.assign(secondaryBtn.style, {
+        flex: '1',
+        padding: '12px 20px',
+        backgroundColor: '#6c757d',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontWeight: '500',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s'
+    });
+
+    // アニメーション用のCSSを追加
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// 画像フォーム用のカテゴリーを読み込み
+async function loadCategoriesForImageForm() {
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'getFavoritesData' });
+        if (response && response.success) {
+            const categories = response.data.categories || [];
+            const categorySelect = document.getElementById('image-form-category');
+
+            if (categorySelect) {
+                categorySelect.innerHTML = '<option value="">カテゴリーを選択</option>';
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('カテゴリー読み込みエラー:', error);
+    }
+}
+
+// 画像フォーム用のタグを読み込み
+async function loadTagsForImageForm() {
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'getFavoritesData' });
+        if (response && response.success) {
+            const allTags = response.data.allTags || [];
+            const container = document.getElementById('image-form-existing-tags');
+            
+            if (container) {
+                container.innerHTML = '';
+                
+                if (allTags.length === 0) {
+                    const span = document.createElement('span');
+                    span.style.color = '#999';
+                    span.style.fontSize = '11px';
+                    span.textContent = 'まだタグがありません';
+                    container.appendChild(span);
+                    return;
+                }
+
+                allTags.forEach(tag => {
+                    const tagElement = document.createElement('span');
+                    tagElement.className = 'existing-tag';
+                    tagElement.textContent = tag;
+                    
+                    // スタイルを適用
+                    Object.assign(tagElement.style, {
+                        background: '#e9ecef',
+                        color: '#495057',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                        border: '1px solid transparent',
+                        userSelect: 'none'
+                    });
+                    
+                    tagElement.addEventListener('click', () => {
+                        toggleImageFormTag(tag);
+                    });
+                    
+                    tagElement.addEventListener('mouseenter', () => {
+                        if (!tagElement.classList.contains('selected')) {
+                            tagElement.style.background = '#dee2e6';
+                        }
+                    });
+                    
+                    tagElement.addEventListener('mouseleave', () => {
+                        if (!tagElement.classList.contains('selected')) {
+                            tagElement.style.background = '#e9ecef';
+                        }
+                    });
+                    
+                    container.appendChild(tagElement);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('タグ読み込みエラー:', error);
+    }
+}
+
+// 画像フォーム用のタグ選択状態を管理
+let imageFormSelectedTags = new Set();
+
+// 画像フォームでタグを切り替え
+function toggleImageFormTag(tag) {
+    if (imageFormSelectedTags.has(tag)) {
+        imageFormSelectedTags.delete(tag);
+    } else {
+        imageFormSelectedTags.add(tag);
+    }
+    updateImageFormSelectedTags();
+    updateImageFormExistingTagsDisplay();
+}
+
+// 画像フォームの選択済みタグ表示を更新
+function updateImageFormSelectedTags() {
+    const container = document.getElementById('image-form-selected-tags');
+    if (!container) return;
+    
+    container.innerHTML = '';
+
+    imageFormSelectedTags.forEach(tag => {
+        const tagElement = document.createElement('span');
+        tagElement.className = 'selected-tag';
+        tagElement.textContent = tag + ' ';
+        
+        // スタイルを適用
+        Object.assign(tagElement.style, {
+            background: '#007bff',
+            color: 'white',
+            padding: '3px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginRight: '4px',
+            marginBottom: '4px'
+        });
+
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'remove-tag';
+        removeBtn.textContent = '×';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.fontWeight = 'bold';
+        removeBtn.style.fontSize = '12px';
+        
+        removeBtn.addEventListener('click', () => {
+            imageFormSelectedTags.delete(tag);
+            updateImageFormSelectedTags();
+            updateImageFormExistingTagsDisplay();
+        });
+        
+        removeBtn.addEventListener('mouseenter', () => {
+            removeBtn.style.color = '#ffcccc';
+        });
+        
+        removeBtn.addEventListener('mouseleave', () => {
+            removeBtn.style.color = 'white';
+        });
+
+        tagElement.appendChild(removeBtn);
+        container.appendChild(tagElement);
+    });
+}
+
+// 画像フォームの既存タグ表示を更新
+function updateImageFormExistingTagsDisplay() {
+    const existingTags = document.querySelectorAll('#image-form-existing-tags .existing-tag');
+    existingTags.forEach(tagElement => {
+        const tag = tagElement.textContent;
+        if (imageFormSelectedTags.has(tag)) {
+            tagElement.classList.add('selected');
+            tagElement.style.background = '#007bff';
+            tagElement.style.color = 'white';
+            tagElement.style.borderColor = '#0056b3';
+        } else {
+            tagElement.classList.remove('selected');
+            tagElement.style.background = '#e9ecef';
+            tagElement.style.color = '#495057';
+            tagElement.style.borderColor = 'transparent';
+        }
+    });
+}
+
+// 画像フォームでタグ入力から追加
+function addImageFormTagFromInput() {
+    const tagsInput = document.getElementById('image-form-tags');
+    if (!tagsInput) return;
+
+    const inputValue = tagsInput.value.trim();
+    if (!inputValue) return;
+
+    const newTags = inputValue.split(',').map(tag => tag.trim()).filter(tag => tag);
+    newTags.forEach(tag => {
+        if (tag) {
+            imageFormSelectedTags.add(tag);
+        }
+    });
+
+    tagsInput.value = '';
+    updateImageFormSelectedTags();
+}
+
+// 画像フォームのイベントリスナーを設定
+function setupImageFormEventListeners(formContainer) {
+    const saveBtn = formContainer.querySelector('#image-form-save');
+    const cancelBtn = formContainer.querySelector('#image-form-cancel');
+    const overlay = formContainer.querySelector('.form-overlay');
+
+    // 保存ボタン
+    saveBtn.addEventListener('click', async () => {
+        await saveImageFavorite(formContainer);
+    });
+
+    // キャンセルボタン
+    cancelBtn.addEventListener('click', () => {
+        imageFormSelectedTags.clear();
+        formContainer.remove();
+    });
+
+    // オーバーレイクリックで閉じる
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            imageFormSelectedTags.clear();
+            formContainer.remove();
+        }
+    });
+
+    // Escキーで閉じる
+    document.addEventListener('keydown', function escHandler(e) {
+        if (e.key === 'Escape') {
+            imageFormSelectedTags.clear();
+            formContainer.remove();
+            document.removeEventListener('keydown', escHandler);
+        }
+    });
+
+    // ホバー効果
+    saveBtn.addEventListener('mouseenter', () => {
+        saveBtn.style.backgroundColor = '#0056b3';
+    });
+    saveBtn.addEventListener('mouseleave', () => {
+        saveBtn.style.backgroundColor = '#007bff';
+    });
+
+    cancelBtn.addEventListener('mouseenter', () => {
+        cancelBtn.style.backgroundColor = '#545b62';
+    });
+    cancelBtn.addEventListener('mouseleave', () => {
+        cancelBtn.style.backgroundColor = '#6c757d';
+    });
+
+    // タグ入力のイベントリスナー
+    const tagsInput = formContainer.querySelector('#image-form-tags');
+    if (tagsInput) {
+        tagsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                addImageFormTagFromInput();
+            }
+        });
+
+        tagsInput.addEventListener('blur', () => {
+            addImageFormTagFromInput();
+        });
+    }
+}
+
+// 画像お気に入りを保存
+async function saveImageFavorite(formContainer) {
+    try {
+        const title = formContainer.querySelector('#image-form-title').value.trim();
+        const url = formContainer.querySelector('#image-form-url').value.trim();
+        const imageUrl = formContainer.querySelector('#image-form-image-url').value.trim();
+        const selectedCategory = formContainer.querySelector('#image-form-category').value;
+        const newCategory = formContainer.querySelector('#image-form-new-category').value.trim();
+        const tagsInput = formContainer.querySelector('#image-form-tags').value.trim();
+
+        if (!title || !url) {
+            alert('タイトルとURLは必須です');
+            return;
+        }
+
+        // URLの形式チェック
+        try {
+            new URL(url);
+        } catch (e) {
+            alert('有効なURLを入力してください');
+            return;
+        }
+
+        // 画像URLの形式チェック（入力されている場合のみ）
+        if (imageUrl) {
+            try {
+                new URL(imageUrl);
+            } catch (e) {
+                alert('有効な画像URLを入力してください');
+                return;
+            }
+        }
+
+        // カテゴリーの決定
+        const category = newCategory || selectedCategory;
+
+        // タグの処理 - 選択されたタグと入力されたタグを結合
+        const inputTags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+        inputTags.forEach(tag => imageFormSelectedTags.add(tag));
+        const tags = Array.from(imageFormSelectedTags);
+
+        // お気に入りデータを作成
+        const favorite = {
+            id: Date.now().toString(),
+            title,
+            url,
+            imageUrl: imageUrl || null,
+            category: category || '',
+            tags,
+            timestamp: new Date().toISOString()
+        };
+
+        // ストレージに保存
+        const result = await browser.storage.local.get(['favorites', 'categories', 'allTags']);
+        const favorites = result.favorites || [];
+        const categories = result.categories || [];
+        const allTags = result.allTags || [];
+
+        favorites.push(favorite);
+
+        // 新しいカテゴリーを追加
+        if (category && !categories.includes(category)) {
+            categories.push(category);
+        }
+
+        // 新しいタグを追加
+        tags.forEach(tag => {
+            if (!allTags.includes(tag)) {
+                allTags.push(tag);
+            }
+        });
+
+        await browser.storage.local.set({ favorites, categories, allTags });
+
+        // 成功メッセージを表示
+        showSuccessMessage('お気に入りに追加しました！');
+
+        // フォームを閉じる
+        imageFormSelectedTags.clear();
+        formContainer.remove();
+
+        // インジケーターを更新
+        const indicator = new FavoriteIndicator();
+        indicator.checkAndShowIndicator();
+
+    } catch (error) {
+        console.error('画像お気に入り保存エラー:', error);
+        alert('保存中にエラーが発生しました: ' + error.message);
+    }
+}
+
+// 成功メッセージを表示
+function showSuccessMessage(message) {
+    const successDiv = document.createElement('div');
+    successDiv.textContent = message;
+
+    Object.assign(successDiv.style, {
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        backgroundColor: '#28a745',
+        color: 'white',
+        padding: '12px 20px',
+        borderRadius: '6px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: '10002',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '14px',
+        fontWeight: '500'
+    });
+
+    document.body.appendChild(successDiv);
+
+    // 3秒後に自動で削除
+    setTimeout(() => {
+        if (successDiv.parentNode) {
+            successDiv.remove();
+        }
+    }, 3000);
+}
+
 // ページ読み込み時に初期化
 if (typeof browser !== 'undefined') {
     new FavoriteIndicator();
