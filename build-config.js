@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-// ビルド時に環境変数から設定ファイルを生成するスクリプト
+// ビルド時に環境変数から設定ファイルを生成し、Supabaseクライアントをダウンロードするスクリプト
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
 // .env.localファイルを読み込む関数
 function loadEnvFile(filePath) {
@@ -25,6 +26,54 @@ function loadEnvFile(filePath) {
   });
 
   return envVars;
+}
+
+// Supabaseクライアントをダウンロード
+async function downloadSupabaseClient() {
+  const supabaseDir = 'supabase';
+  const supabaseFile = path.join(supabaseDir, 'supabase-js.min.js');
+  
+  // ディレクトリが存在しない場合は作成
+  if (!fs.existsSync(supabaseDir)) {
+    fs.mkdirSync(supabaseDir, { recursive: true });
+  }
+  
+  // 既にファイルが存在し、サイズが適切な場合はスキップ
+  if (fs.existsSync(supabaseFile)) {
+    const stats = fs.statSync(supabaseFile);
+    if (stats.size > 10000) { // 10KB以上なら有効なファイルとみなす
+      console.log('✅ Supabaseクライアントは既に存在します');
+      return;
+    }
+  }
+  
+  console.log('📥 Supabaseクライアントをダウンロード中...');
+  
+  return new Promise((resolve, reject) => {
+    const url = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
+    const file = fs.createWriteStream(supabaseFile);
+    
+    https.get(url, (response) => {
+      // リダイレクトの処理
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        https.get(response.headers.location, (redirectResponse) => {
+          redirectResponse.pipe(file);
+          file.on('finish', () => {
+            file.close();
+            console.log('✅ Supabaseクライアントをダウンロードしました');
+            resolve();
+          });
+        }).on('error', reject);
+      } else {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          console.log('✅ Supabaseクライアントをダウンロードしました');
+          resolve();
+        });
+      }
+    }).on('error', reject);
+  });
 }
 
 // 設定ファイルを生成
@@ -83,9 +132,21 @@ if (typeof module !== 'undefined' && module.exports) {
   }
 }
 
-// スクリプトが直接実行された場合
-if (require.main === module) {
-  generateConfig();
+// メイン処理
+async function main() {
+  try {
+    await downloadSupabaseClient();
+    generateConfig();
+    console.log('🎉 ビルド完了！');
+  } catch (error) {
+    console.error('❌ ビルドエラー:', error);
+    process.exit(1);
+  }
 }
 
-module.exports = { generateConfig };
+// スクリプトが直接実行された場合
+if (require.main === module) {
+  main();
+}
+
+module.exports = { generateConfig, downloadSupabaseClient };

@@ -13,9 +13,9 @@ class SupabaseClient {
         throw new Error('Supabase設定が不完全です');
       }
 
-      // Supabaseクライアントを動的に読み込み
+      // Supabaseクライアントを初期化（ローカルファイルから）
       if (typeof window !== 'undefined' && !window.supabase) {
-        await this.loadSupabaseScript();
+        throw new Error('Supabaseクライアントが見つかりません。supabase-js.min.jsが正しく読み込まれているか確認してください。');
       }
 
       this.supabase = window.supabase.createClient(
@@ -43,15 +43,15 @@ class SupabaseClient {
     }
   }
 
-  // Supabaseスクリプトを動的に読み込み
+  // Supabaseクライアントを動的に読み込み
   async loadSupabaseScript() {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@supabase/supabase-js@2';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
+    // ローカルファイルが既に読み込まれている場合はスキップ
+    if (typeof window !== 'undefined' && window.supabase) {
+      return Promise.resolve();
+    }
+    
+    // ローカルファイルが読み込まれていない場合はエラー
+    throw new Error('Supabaseクライアントが読み込まれていません。supabase-js.min.jsが正しく読み込まれているか確認してください。');
   }
 
   // 認証状態変更の通知

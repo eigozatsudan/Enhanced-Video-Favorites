@@ -36,7 +36,8 @@
   ],
   "web_accessible_resources": [
     "web-view.html",
-    "web-view.js"
+    "web-view.js",
+    "supabase/supabase-js.min.js"
   ],
   "browser_specific_settings": {
     "gecko": {
@@ -48,5 +49,5 @@
       }
     }
   },
-  "content_security_policy": "script-src 'self' https://unpkg.com; object-src 'self'"
+  "content_security_policy": "script-src 'self'; object-src 'self'"
 }
