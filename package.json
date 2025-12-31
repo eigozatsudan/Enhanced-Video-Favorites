@@ -1,0 +1,17 @@
+{
+  "name": "enhanced-video-favorites",
+  "version": "1.0.5",
+  "description": "動画サイト用の高機能お気に入り管理ツール",
+  "scripts": {
+    "build": "node build-config.js",
+    "dev": "node build-config.js && echo '開発用設定ファイルを生成しました'",
+    "setup": "node build-config.js"
+  },
+  "keywords": [
+    "browser-extension",
+    "favorites",
+    "supabase"
+  ],
+  "author": "",
+  "license": "MIT"
+}
