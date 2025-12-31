@@ -8,6 +8,39 @@
   <div class="container">
     <h2>お気に入り管理</h2>
     
+    <!-- 認証セクション -->
+    <div id="auth-section" class="auth-section">
+      <div id="login-form" class="auth-form">
+        <h3>ログイン</h3>
+        <input type="email" id="login-email" placeholder="メールアドレス" required>
+        <input type="password" id="login-password" placeholder="パスワード" required>
+        <div class="auth-actions">
+          <button id="login-btn" class="btn primary">ログイン</button>
+          <button id="show-signup-btn" class="btn">新規登録</button>
+        </div>
+      </div>
+      
+      <div id="signup-form" class="auth-form hidden">
+        <h3>新規登録</h3>
+        <input type="email" id="signup-email" placeholder="メールアドレス" required>
+        <input type="password" id="signup-password" placeholder="パスワード（6文字以上）" required>
+        <div class="auth-actions">
+          <button id="signup-btn" class="btn primary">登録</button>
+          <button id="show-login-btn" class="btn">ログインに戻る</button>
+        </div>
+      </div>
+      
+      <div id="user-info" class="user-info hidden">
+        <p>ログイン中: <span id="user-email"></span></p>
+        <div class="sync-actions">
+          <button id="sync-to-cloud-btn" class="btn">クラウドに同期</button>
+          <button id="sync-from-cloud-btn" class="btn">クラウドから取得</button>
+          <button id="logout-btn" class="btn">ログアウト</button>
+        </div>
+        <div id="sync-status" class="sync-status"></div>
+      </div>
+    </div>
+    
     <!-- 共通の追加ボタン -->
     <div class="common-actions">
       <button id="add-current-btn" class="btn primary">現在のページを追加</button>
@@ -124,6 +157,9 @@
     </div>
   </div>
   
+  <!-- Supabase設定とクライアントを読み込み -->
+  <script src="../supabase/config.js"></script>
+  <script src="../supabase/client.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

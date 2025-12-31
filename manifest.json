@@ -9,7 +9,9 @@
     "tabs",
     "contextMenus",
     "management",
-    "notifications"
+    "notifications",
+    "https://supabase.co/*",
+    "https://*.supabase.co/*"
   ],
   "browser_action": {
     "default_popup": "popup/popup.html",
@@ -46,5 +48,5 @@
       }
     }
   },
-  "content_security_policy": "script-src 'self'; object-src 'self'"
+  "content_security_policy": "script-src 'self' https://unpkg.com; object-src 'self'"
 }

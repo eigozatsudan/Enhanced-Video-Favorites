@@ -1,10 +1,15 @@
 class FavoritesManager {
     constructor() {
+        this.supabaseClient = null;
         this.init();
     }
 
     async init() {
         console.log('FavoritesManager初期化開始');
+
+        // Supabaseクライアントを初期化
+        this.supabaseClient = getSupabaseClient();
+        await this.supabaseClient.init();
 
         // データ整合性チェック
         await this.checkDataIntegrity();
@@ -13,9 +18,13 @@ class FavoritesManager {
         this.editingFavoriteId = null;
         this.editSelectedTags = new Set();
         this.setupEventListeners();
+        this.setupAuthEventListeners();
         await this.loadCategories();
         await this.loadTags();
         await this.loadFavorites();
+        
+        // 認証状態を更新
+        this.updateAuthUI();
 
         // 一時的な画像データがあるかチェック
         await this.checkTempImageData();
@@ -260,6 +269,61 @@ class FavoritesManager {
                 this.addEditTagFromInput();
             });
         }
+    }
+
+    // 認証関連のイベントリスナーを設定
+    setupAuthEventListeners() {
+        // ログインボタン
+        document.getElementById('login-btn').addEventListener('click', () => {
+            this.handleLogin();
+        });
+
+        // サインアップボタン
+        document.getElementById('signup-btn').addEventListener('click', () => {
+            this.handleSignup();
+        });
+
+        // ログアウトボタン
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            this.handleLogout();
+        });
+
+        // フォーム切り替えボタン
+        document.getElementById('show-signup-btn').addEventListener('click', () => {
+            this.showSignupForm();
+        });
+
+        document.getElementById('show-login-btn').addEventListener('click', () => {
+            this.showLoginForm();
+        });
+
+        // 同期ボタン
+        document.getElementById('sync-to-cloud-btn').addEventListener('click', () => {
+            this.syncToCloud();
+        });
+
+        document.getElementById('sync-from-cloud-btn').addEventListener('click', () => {
+            this.syncFromCloud();
+        });
+
+        // Supabase認証状態変更の監視
+        window.addEventListener('supabaseAuthChange', (event) => {
+            console.log('認証状態変更イベント受信:', event.detail);
+            this.updateAuthUI();
+        });
+
+        // Enterキーでログイン/サインアップ
+        document.getElementById('login-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.handleLogin();
+            }
+        });
+
+        document.getElementById('signup-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.handleSignup();
+            }
+        });
     }
 
     switchTab(tabName) {
@@ -1300,6 +1364,227 @@ class FavoritesManager {
             this.allTags = Array.from(allTags);
         } catch (error) {
             console.error('全タグリスト更新エラー:', error);
+        }
+    }
+
+    // 認証UI更新
+    updateAuthUI() {
+        const isAuthenticated = this.supabaseClient && this.supabaseClient.isAuthenticated();
+        const user = this.supabaseClient ? this.supabaseClient.getCurrentUser() : null;
+
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const userInfo = document.getElementById('user-info');
+        const userEmail = document.getElementById('user-email');
+
+        if (isAuthenticated && user) {
+            // ログイン済み
+            loginForm.classList.add('hidden');
+            signupForm.classList.add('hidden');
+            userInfo.classList.remove('hidden');
+            userEmail.textContent = user.email;
+        } else {
+            // 未ログイン
+            loginForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+            userInfo.classList.add('hidden');
+        }
+    }
+
+    // ログイン処理
+    async handleLogin() {
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        if (!email || !password) {
+            alert('メールアドレスとパスワードを入力してください');
+            return;
+        }
+
+        try {
+            this.showSyncStatus('ログイン中...', 'info');
+            const result = await this.supabaseClient.signIn(email, password);
+
+            if (result.success) {
+                this.showSyncStatus('ログインしました', 'success');
+                // フォームをクリア
+                document.getElementById('login-email').value = '';
+                document.getElementById('login-password').value = '';
+            } else {
+                this.showSyncStatus('ログインに失敗しました: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('ログインエラー:', error);
+            this.showSyncStatus('ログインエラー: ' + error.message, 'error');
+        }
+    }
+
+    // サインアップ処理
+    async handleSignup() {
+        const email = document.getElementById('signup-email').value.trim();
+        const password = document.getElementById('signup-password').value;
+
+        if (!email || !password) {
+            alert('メールアドレスとパスワードを入力してください');
+            return;
+        }
+
+        if (password.length < 6) {
+            alert('パスワードは6文字以上で入力してください');
+            return;
+        }
+
+        try {
+            this.showSyncStatus('アカウント作成中...', 'info');
+            const result = await this.supabaseClient.signUp(email, password);
+
+            if (result.success) {
+                if (result.needsConfirmation) {
+                    this.showSyncStatus('アカウントを作成しました。確認メールをチェックしてください。', 'success');
+                } else {
+                    this.showSyncStatus('アカウントを作成してログインしました。', 'success');
+                }
+                
+                // フォームをクリア
+                document.getElementById('signup-email').value = '';
+                document.getElementById('signup-password').value = '';
+                
+                // メール認証が不要な場合はそのまま使用可能
+                if (!result.needsConfirmation) {
+                    // UIを更新
+                    this.updateAuthUI();
+                } else {
+                    // ログインフォームに戻る
+                    this.showLoginForm();
+                }
+            } else {
+                this.showSyncStatus('アカウント作成に失敗しました: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('サインアップエラー:', error);
+            this.showSyncStatus('サインアップエラー: ' + error.message, 'error');
+        }
+    }
+
+    // ログアウト処理
+    async handleLogout() {
+        try {
+            this.showSyncStatus('ログアウト中...', 'info');
+            const result = await this.supabaseClient.signOut();
+
+            if (result.success) {
+                this.showSyncStatus('ログアウトしました', 'success');
+            } else {
+                this.showSyncStatus('ログアウトに失敗しました: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('ログアウトエラー:', error);
+            this.showSyncStatus('ログアウトエラー: ' + error.message, 'error');
+        }
+    }
+
+    // サインアップフォーム表示
+    showSignupForm() {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('signup-form').classList.remove('hidden');
+    }
+
+    // ログインフォーム表示
+    showLoginForm() {
+        document.getElementById('signup-form').classList.add('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+    }
+
+    // クラウドに同期
+    async syncToCloud() {
+        if (!this.supabaseClient.isAuthenticated()) {
+            alert('ログインが必要です');
+            return;
+        }
+
+        try {
+            this.showSyncStatus('クラウドに同期中...', 'info');
+
+            // ローカルデータを取得
+            const result = await browser.storage.local.get(['favorites', 'categories']);
+            const favorites = result.favorites || [];
+            const categories = result.categories || [];
+
+            // お気に入りを同期
+            const favResult = await this.supabaseClient.syncFavoritesToCloud(favorites);
+            if (!favResult.success) {
+                throw new Error('お気に入り同期エラー: ' + favResult.error);
+            }
+
+            // カテゴリーを同期
+            const catResult = await this.supabaseClient.syncCategoriesToCloud(categories);
+            if (!catResult.success) {
+                throw new Error('カテゴリー同期エラー: ' + catResult.error);
+            }
+
+            this.showSyncStatus(`クラウドに同期しました (お気に入り: ${favorites.length}件, カテゴリー: ${categories.length}件)`, 'success');
+        } catch (error) {
+            console.error('クラウド同期エラー:', error);
+            this.showSyncStatus('クラウド同期エラー: ' + error.message, 'error');
+        }
+    }
+
+    // クラウドから取得
+    async syncFromCloud() {
+        if (!this.supabaseClient.isAuthenticated()) {
+            alert('ログインが必要です');
+            return;
+        }
+
+        if (!confirm('ローカルのデータをクラウドのデータで上書きしますか？')) {
+            return;
+        }
+
+        try {
+            this.showSyncStatus('クラウドから取得中...', 'info');
+
+            // お気に入りを取得
+            const favResult = await this.supabaseClient.getFavoritesFromCloud();
+            if (!favResult.success) {
+                throw new Error('お気に入り取得エラー: ' + favResult.error);
+            }
+
+            // カテゴリーを取得
+            const catResult = await this.supabaseClient.getCategoriesFromCloud();
+            if (!catResult.success) {
+                throw new Error('カテゴリー取得エラー: ' + catResult.error);
+            }
+
+            // ローカルストレージに保存
+            await browser.storage.local.set({
+                favorites: favResult.favorites,
+                categories: catResult.categories
+            });
+
+            // UIを更新
+            await this.loadCategories();
+            await this.loadTags();
+            await this.loadFavorites();
+
+            this.showSyncStatus(`クラウドから取得しました (お気に入り: ${favResult.favorites.length}件, カテゴリー: ${catResult.categories.length}件)`, 'success');
+        } catch (error) {
+            console.error('クラウド取得エラー:', error);
+            this.showSyncStatus('クラウド取得エラー: ' + error.message, 'error');
+        }
+    }
+
+    // 同期ステータス表示
+    showSyncStatus(message, type) {
+        const statusDiv = document.getElementById('sync-status');
+        statusDiv.textContent = message;
+        statusDiv.className = `sync-status ${type}`;
+
+        // 成功/エラーメッセージは5秒後に消す
+        if (type === 'success' || type === 'error') {
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = 'sync-status';
+            }, 5000);
         }
     }
 }
