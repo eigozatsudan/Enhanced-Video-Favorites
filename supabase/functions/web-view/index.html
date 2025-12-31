@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>お気に入り一覧 - Enhanced Video Favorites</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; color: #333; line-height: 1.6; }
+    .header { background: white; padding: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+    h1 { color: #007bff; font-size: 28px; margin-bottom: 10px; }
+    .subtitle { color: #666; font-size: 16px; }
+    .auth-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .auth-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .auth-form input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px; }
+    .auth-form button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .auth-form button:hover { background: #0056b3; }
+    .user-info { display: flex; justify-content: space-between; align-items: center; }
+    .controls { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .filters { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+    .filters select, .filters input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    .filters input[type="text"] { flex: 1; min-width: 200px; }
+    .refresh-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .refresh-btn:hover { background: #0056b3; }
+    .favorites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 25px; margin-bottom: 30px; }
+    .favorite-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .favorite-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+    .favorite-image { width: 100%; height: 280px; background: #f8f9fa; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .favorite-image img { width: 100%; height: 100%; object-fit: cover; }
+    .image-fallback { font-size: 64px; color: #6c757d; }
+    .favorite-content { padding: 15px; }
+    .favorite-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: #333; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .favorite-url { font-size: 12px; color: #007bff; margin-bottom: 8px; word-break: break-all; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+    .favorite-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .category-badge { background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,123,255,0.3); display: inline-flex; align-items: center; gap: 4px; }
+    .category-badge::before { content: "\1F4C1"; font-size: 10px; }
+    .category-badge.no-category { background: linear-gradient(135deg, #6c757d, #495057); box-shadow: 0 2px 4px rgba(108,117,125,0.3); }
+    .category-badge.no-category::before { content: "\1F4C4"; }
+    .favorite-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { background: #e9ecef; padding: 2px 6px; border-radius: 10px; font-size: 10px; color: #495057; }
+    .no-favorites { text-align: center; padding: 60px 20px; color: #666; }
+    .no-favorites h3 { margin-bottom: 10px; color: #333; }
+    .stats { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; }
+    .stat-item { text-align: center; }
+    .stat-number { font-size: 24px; font-weight: bold; color: #007bff; }
+    .stat-label { font-size: 14px; color: #666; margin-top: 4px; }
+    .loading-indicator { text-align: center; padding: 40px 20px; color: #666; }
+    .loading-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @media (max-width: 768px) {
+      .favorites-grid { grid-template-columns: 1fr; }
+      .filters { flex-direction: column; align-items: stretch; }
+      .filters input[type="text"] { min-width: auto; }
+      .auth-form { flex-direction: column; align-items: stretch; }
+      .auth-form input { min-width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="container">
+      <h1>お気に入り一覧</h1>
+      <p class="subtitle">Enhanced Video Favorites - Web View</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="auth-section" id="auth-section">
+      <div id="login-form" class="auth-form">
+        <input type="email" id="email" placeholder="メールアドレス" required>
+        <input type="password" id="password" placeholder="パスワード" required>
+        <button onclick="signIn()">ログイン</button>
+        <button onclick="signUp()">新規登録</button>
+      </div>
+      <div id="user-info" class="user-info" style="display: none;">
+        <span id="user-email"></span>
+        <button onclick="signOut()">ログアウト</button>
+      </div>
+    </div>
+
+    <div id="main-content" style="display: none;">
+      <div class="stats">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-number" id="total-count">0</div>
+            <div class="stat-label">総数</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="category-count">0</div>
+            <div class="stat-label">カテゴリー</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="with-image-count">0</div>
+            <div class="stat-label">画像付き</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="filters">
+          <select id="filter-category">
+            <option value="">全カテゴリー</option>
+          </select>
+          <select id="sort-order">
+            <option value="newest">新しい順</option>
+            <option value="oldest">古い順</option>
+            <option value="title-asc">タイトル昇順</option>
+            <option value="title-desc">タイトル降順</option>
+          </select>
+          <input type="text" id="search" placeholder="検索...">
+          <button class="refresh-btn" onclick="loadFavorites()">更新</button>
+        </div>
+      </div>
+
+      <div id="favorites-container">
+        <div class="favorites-grid" id="favorites-grid"></div>
+        <div class="loading-indicator" id="loading-indicator" style="display: none;">
+          <div class="loading-spinner"></div>
+          <p>読み込み中...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ここをアップロード前に置換してください
+    const SUPABASE_URL = 'https://stydfridkqgtwztxsgrx.supabase.co'
+    const SUPABASE_ANON_KEY = 'sb_publishable_yNBZuk3yxZShOKXsAVRixA_wlyswiFC'
+    const EDGE_BASE = 'https://stydfridkqgtwztxsgrx.supabase.co/functions/v1/favorites' // 例: https://<project>.supabase.co/functions/v1/web-view
+
+    // Use a distinct name to avoid clashing with the global `supabase` namespace
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+    let currentUser = null
+    let allFavorites = []
+    let allCategories = []
+    let filteredFavorites = []
+    let renderIndex = 0
+    const PAGE_SIZE = 20
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        currentUser = session?.user || null
+        updateAuthUI()
+        if (currentUser && event === 'SIGNED_IN') {
+          loadFavorites()
+        }
+      })
+
+      const { data: { session }, error } = await supabaseClient.auth.getSession()
+      if (!error) {
+        currentUser = session?.user || null
+        updateAuthUI()
+        if (currentUser) {
+          loadFavorites()
+        }
+      }
+
+      setupEventListeners()
+      window.addEventListener('scroll', handleScroll)
+    })
+
+    function updateAuthUI() {
+      const loginForm = document.getElementById('login-form')
+      const userInfo = document.getElementById('user-info')
+      const mainContent = document.getElementById('main-content')
+      const userEmail = document.getElementById('user-email')
+
+      if (currentUser) {
+        loginForm.style.display = 'none'
+        userInfo.style.display = 'flex'
+        mainContent.style.display = 'block'
+        userEmail.textContent = currentUser.email
+      } else {
+        loginForm.style.display = 'flex'
+        userInfo.style.display = 'none'
+        mainContent.style.display = 'none'
+      }
+    }
+
+    async function signIn() {
+      const email = document.getElementById('email').value
+      const password = document.getElementById('password').value
+      if (!email || !password) return alert('メールアドレスとパスワードを入力してください')
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password })
+      if (error) alert('ログインエラー: ' + error.message)
+    }
+
+    async function signUp() {
+      const email = document.getElementById('email').value
+      const password = document.getElementById('password').value
+      if (!email || !password) return alert('メールアドレスとパスワードを入力してください')
+      const { error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: undefined } })
+      if (error) {
+        alert('登録エラー: ' + error.message)
+      } else {
+        alert('登録が完了しました。ログインしてください。')
+      }
+    }
+
+    async function signOut() {
+      const { error } = await supabaseClient.auth.signOut()
+      if (error) alert('ログアウトエラー: ' + error.message)
+    }
+
+    async function loadFavorites() {
+      if (!currentUser) return
+      const loadingIndicator = document.getElementById('loading-indicator')
+      loadingIndicator.style.display = 'block'
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+        if (sessionError || !session) throw new Error('認証セッションが無効です。再ログインしてください。')
+
+        const response = await fetch(`${EDGE_BASE}/api/favorites`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`API Error (${response.status}): ${errorText}`)
+        }
+
+        const result = await response.json()
+        if (result.success) {
+          allFavorites = result.data.favorites
+          allCategories = result.data.categories
+          loadCategories()
+          filterFavorites(true)
+          updateStats()
+        } else {
+          throw new Error(result.error || 'データの取得に失敗しました')
+        }
+      } catch (error) {
+        console.error(error)
+        showError('データの読み込みに失敗しました: ' + error.message)
+      } finally {
+        loadingIndicator.style.display = 'none'
+      }
+    }
+
+    function setupEventListeners() {
+      document.getElementById('search').addEventListener('input', filterFavorites)
+      document.getElementById('filter-category').addEventListener('change', filterFavorites)
+      document.getElementById('sort-order').addEventListener('change', filterFavorites)
+    }
+
+    function loadCategories() {
+      const filterSelect = document.getElementById('filter-category')
+      filterSelect.innerHTML = '<option value="">全カテゴリー</option>'
+      allCategories.forEach((category) => {
+        const option = document.createElement('option')
+        option.value = category
+        option.textContent = category
+        filterSelect.appendChild(option)
+      })
+    }
+
+    function filterFavorites(reset = false) {
+      const searchTerm = document.getElementById('search').value.toLowerCase()
+      const selectedCategory = document.getElementById('filter-category').value
+      const sortOrder = document.getElementById('sort-order').value
+      let filtered = allFavorites
+      if (selectedCategory) filtered = filtered.filter((fav) => fav.category === selectedCategory)
+      if (searchTerm) {
+        filtered = filtered.filter((fav) =>
+          fav.title.toLowerCase().includes(searchTerm) ||
+          fav.url.toLowerCase().includes(searchTerm) ||
+          fav.tags.some((tag) => tag.toLowerCase().includes(searchTerm))
+        )
+      }
+      filteredFavorites = sortFavorites(filtered, sortOrder)
+      if (reset) renderIndex = 0
+      displayFavorites(reset)
+    }
+
+    function sortFavorites(favorites, sortOrder) {
+      const sorted = [...favorites]
+      switch (sortOrder) {
+        case 'newest': return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        case 'oldest': return sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        case 'title-asc': return sorted.sort((a, b) => a.title.localeCompare(b.title, 'ja'))
+        case 'title-desc': return sorted.sort((a, b) => b.title.localeCompare(a.title, 'ja'))
+        default: return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      }
+    }
+
+    function displayFavorites(reset = false) {
+      const container = document.getElementById('favorites-grid')
+      if (reset) container.innerHTML = ''
+      if (filteredFavorites.length === 0) {
+        container.innerHTML = ''
+        const noFavDiv = document.createElement('div')
+        noFavDiv.className = 'no-favorites'
+        noFavDiv.innerHTML = '<h3>お気に入りがありません</h3><p>拡張機能からお気に入りを追加してください</p>'
+        container.appendChild(noFavDiv)
+        return
+      }
+
+      const slice = filteredFavorites.slice(renderIndex, renderIndex + PAGE_SIZE)
+      slice.forEach((favorite) => {
+        const card = createFavoriteCard(favorite)
+        container.appendChild(card)
+      })
+      renderIndex += slice.length
+    }
+
+    function handleScroll() {
+      const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200
+      if (nearBottom) {
+        displayFavorites(false)
+      }
+    }
+
+    function createFavoriteCard(favorite) {
+      const card = document.createElement('div')
+      card.className = 'favorite-card'
+      card.onclick = () => window.open(favorite.url, '_blank')
+
+      const imageDiv = document.createElement('div')
+      imageDiv.className = 'favorite-image'
+      if (favorite.imageUrl) {
+        const img = document.createElement('img')
+        img.src = favorite.imageUrl
+        img.alt = favorite.title
+        img.loading = 'lazy'
+        img.onerror = function() { this.style.display = 'none'; this.nextElementSibling.style.display = 'flex' }
+        const fallback = document.createElement('div')
+        fallback.className = 'image-fallback'
+        fallback.style.display = 'none'
+        fallback.textContent = '🔗'
+        imageDiv.appendChild(img)
+        imageDiv.appendChild(fallback)
+      } else {
+        const fallback = document.createElement('div')
+        fallback.className = 'image-fallback'
+        fallback.textContent = '🔗'
+        imageDiv.appendChild(fallback)
+      }
+
+      const contentDiv = document.createElement('div')
+      contentDiv.className = 'favorite-content'
+      const titleDiv = document.createElement('div')
+      titleDiv.className = 'favorite-title'
+      titleDiv.textContent = favorite.title
+      const urlDiv = document.createElement('div')
+      urlDiv.className = 'favorite-url'
+      urlDiv.textContent = favorite.url
+      const metaDiv = document.createElement('div')
+      metaDiv.className = 'favorite-meta'
+      const categoryBadge = document.createElement('span')
+      if (favorite.category) {
+        categoryBadge.className = 'category-badge'
+        categoryBadge.textContent = favorite.category
+      } else {
+        categoryBadge.className = 'category-badge no-category'
+        categoryBadge.textContent = '未分類'
+      }
+      metaDiv.appendChild(categoryBadge)
+      const tagsDiv = document.createElement('div')
+      tagsDiv.className = 'favorite-tags'
+      favorite.tags.forEach((tag) => {
+        const tagSpan = document.createElement('span')
+        tagSpan.className = 'tag'
+        tagSpan.textContent = tag
+        tagsDiv.appendChild(tagSpan)
+      })
+      contentDiv.appendChild(titleDiv)
+      contentDiv.appendChild(urlDiv)
+      contentDiv.appendChild(metaDiv)
+      contentDiv.appendChild(tagsDiv)
+      card.appendChild(imageDiv)
+      card.appendChild(contentDiv)
+      return card
+    }
+
+    function updateStats() {
+      document.getElementById('total-count').textContent = allFavorites.length
+      document.getElementById('category-count').textContent = allCategories.length
+      document.getElementById('with-image-count').textContent = allFavorites.filter((fav) => fav.imageUrl).length
+    }
+
+    function showError(message) {
+      const container = document.getElementById('favorites-grid')
+      container.innerHTML = ''
+      const errorDiv = document.createElement('div')
+      errorDiv.className = 'no-favorites'
+      errorDiv.innerHTML = `<h3>エラーが発生しました</h3><p>${message}</p><button class="refresh-btn" onclick="loadFavorites()">再読み込み</button>`
+      container.appendChild(errorDiv)
+    }
+
+    // Expose functions for inline onclick handlers
+    window.signIn = signIn
+    window.signUp = signUp
+    window.signOut = signOut
+    window.loadFavorites = loadFavorites
+  </script>
+</body>
+</html>
