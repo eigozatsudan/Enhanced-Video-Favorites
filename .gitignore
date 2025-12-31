@@ -8,9 +8,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 生成されたファイル
-supabase/config.js
-
 # ブラウザ拡張機能
 *.crx
 *.pem
