@@ -506,3 +506,114 @@ h2 {
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
+/* モバイル（Android Firefox）対応 */
+@media (max-width: 768px) {
+  body {
+    width: 100vw;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .container {
+    padding: 10px;
+  }
+
+  .common-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .common-actions .btn {
+    width: 100%;
+    min-width: auto;
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .tab-btn {
+    min-width: 80px;
+    font-size: 12px;
+  }
+
+  .filters {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filters select,
+  .filters input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  .favorite-item {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .favorite-image,
+  .favorite-icon {
+    width: 100%;
+    height: 120px;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  .favorite-actions {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .edit-btn,
+  .delete-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  /* タッチ操作の改善 */
+  .btn,
+  .tab-btn,
+  .edit-btn,
+  .delete-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* フォーム要素のタッチ対応 */
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px; /* iOS Safariのズーム防止 */
+  }
+}
+
+/* Android Firefox専用スタイル */
+@media (max-width: 768px) and (-moz-touch-enabled: 1) {
+  .container {
+    padding: 15px;
+  }
+
+  .auth-section {
+    margin-bottom: 20px;
+  }
+
+  .auth-form input {
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  .sync-actions .btn {
+    padding: 12px;
+    font-size: 16px;
+  }
+}

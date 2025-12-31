@@ -25,11 +25,29 @@ class FavoritesManager {
         
         // 認証状態を更新
         this.updateAuthUI();
+        
+        // Android Firefox向けの調整
+        this.adjustForMobile();
 
         // 一時的な画像データがあるかチェック
         await this.checkTempImageData();
 
         console.log('FavoritesManager初期化完了');
+    }
+
+    // 同期ステータス表示
+    showSyncStatus(message, type) {
+        const statusDiv = document.getElementById('sync-status');
+        statusDiv.textContent = message;
+        statusDiv.className = `sync-status ${type}`;
+
+        // 成功/エラーメッセージは5秒後に消す
+        if (type === 'success' || type === 'error') {
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = 'sync-status';
+            }, 5000);
+        }
     }
 
     // 一時的な画像データをチェック
@@ -858,7 +876,14 @@ class FavoritesManager {
         try {
             const webViewUrl = browser.runtime.getURL('web-view.html');
 
-            // 既存のWebViewタブを検索
+            // Android Firefoxの場合は常に新しいタブを作成
+            if (this.isAndroidFirefox()) {
+                await browser.tabs.create({ url: webViewUrl });
+                console.log('Android Firefox: 新しいタブでWebViewを開きました');
+                return;
+            }
+
+            // デスクトップ版の既存ロジック
             const tabs = await browser.tabs.query({});
             const existingTab = tabs.find(tab => tab.url === webViewUrl);
 
@@ -1573,19 +1598,54 @@ class FavoritesManager {
         }
     }
 
-    // 同期ステータス表示
-    showSyncStatus(message, type) {
-        const statusDiv = document.getElementById('sync-status');
-        statusDiv.textContent = message;
-        statusDiv.className = `sync-status ${type}`;
+    // Android版Firefox検出
+    isAndroidFirefox() {
+        return navigator.userAgent.includes('Mobile') && 
+               navigator.userAgent.includes('Firefox');
+    }
 
-        // 成功/エラーメッセージは5秒後に消す
-        if (type === 'success' || type === 'error') {
-            setTimeout(() => {
-                statusDiv.textContent = '';
-                statusDiv.className = 'sync-status';
-            }, 5000);
+    // モバイル向けUI調整
+    adjustForMobile() {
+        if (this.isAndroidFirefox()) {
+            console.log('Android Firefox検出: モバイル向けUI調整を適用');
+            
+            // ポップアップがタブで開かれた場合の調整
+            if (window.location.href.includes('popup.html')) {
+                document.body.style.width = '100vw';
+                document.body.style.maxWidth = 'none';
+                
+                // タイトルを追加
+                const title = document.createElement('h1');
+                title.textContent = 'お気に入り管理';
+                title.style.margin = '0 0 20px 0';
+                title.style.fontSize = '24px';
+                title.style.color = '#333';
+                document.querySelector('.container').insertBefore(title, document.querySelector('.container').firstChild);
+            }
+            
+            // タッチイベントの最適化
+            this.optimizeForTouch();
         }
+    }
+
+    // タッチ操作の最適化
+    optimizeForTouch() {
+        // ダブルタップズームを防止
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (event) => {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // スクロール改善
+        document.addEventListener('touchmove', (event) => {
+            if (event.scale !== 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
     }
 }
 
