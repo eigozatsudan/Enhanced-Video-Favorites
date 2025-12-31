@@ -1,6 +1,6 @@
 # Web View Edge Function
 
-お気に入り一覧APIをEdge Functionで提供し、HTMLはSupabase StorageのPublicオブジェクトに置いてリダイレクトで配信します。
+お気に入り一覧APIをEdge Functionで提供し、HTMLは外部の静的ホスティング（例: GitHub Pages / Netlify / Vercel / S3 など）に置き、リダイレクトで配信します。
 
 ## 🚀 デプロイ手順
 
@@ -20,16 +20,16 @@ supabase init
 supabase link --project-ref YOUR_PROJECT_REF
 ```
 
-### 4. HTMLを準備してStorageへアップロード
+### 4. HTMLを準備して静的ホスティングへ配置
 - `supabase/functions/web-view/index.html` もしくは `templates/web-view-public.html` をベースに、以下を置換して保存
      - `SUPABASE_URL`: プロジェクトURL (`https://<project>.supabase.co`)
      - `SUPABASE_ANON_KEY`: anon key（ダッシュボードの API → Project API Keys）
      - `EDGE_BASE`: 関数のベースURL（例: `https://<project>.supabase.co/functions/v1/web-view`）
-- Supabase Storage の Public バケットに `favorites/index.html` などとしてアップロードし、公開URLを控える
+- GitHub Pages / Netlify / Vercel / S3 などの静的サイトホスティングにアップロードし、HTTPSで配信できるURLを控える
 
 ### 5. 環境変数の設定
 Supabaseダッシュボード（プロジェクト設定 → Functions → Environment variables）で以下を設定：
-- `PUBLIC_WEBVIEW_URL`: 上でアップロードしたHTMLの公開URL
+- `PUBLIC_WEBVIEW_URL`: 上でアップロードしたHTMLの公開URL（例: `https://example.github.io/favorites/index.html`）
 
 ### 6. Edge Functionをデプロイ
 ```bash
@@ -39,13 +39,13 @@ supabase functions deploy web-view
 ## 🌐 アクセス
 
 デプロイ後、以下でアクセス：
-- HTML: `https://YOUR_PROJECT_REF.supabase.co/functions/v1/web-view/` または `/favorites` → Storage上のHTMLへ302リダイレクト
+- HTML: `https://YOUR_PROJECT_REF.supabase.co/functions/v1/web-view/` または `/favorites` → `PUBLIC_WEBVIEW_URL` へ302リダイレクト
 - API: `https://YOUR_PROJECT_REF.supabase.co/functions/v1/web-view/api/favorites`
 
 ## 📋 機能
 
-### HTMLページ提供（Storage）
-- HTMLはStorageのPublicオブジェクトを直接配信（Edge Functionはリダイレクトのみ）
+### HTMLページ提供（外部ホスティング）
+- HTMLは外部の静的ホスティングで配信（Edge Functionはリダイレクトのみ）
 - 認証フォーム付きのSPA、レスポンシブ
 
 ### APIエンドポイント
